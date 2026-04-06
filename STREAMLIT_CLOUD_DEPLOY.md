@@ -2,25 +2,34 @@
 
 This gives you a **stable public URL** (e.g. `https://your-app.streamlit.app`) so judges can open the dashboard without your Wi‑Fi.
 
+## Already done on this PC (local)
+
+- **Git for Windows** was installed (via `winget`).
+- This folder is a **Git repo** with **`main`** and **two commits** (app + `connect_github.ps1`).
+- If a new terminal does not find `git`, use: `C:\Program Files\Git\bin\git.exe`
+
 ## What you must do (about 15 minutes)
 
 ### 1) Put the project on GitHub
 
 Use **this folder** as the repo root (the one that contains `app.py` and `requirements.txt`).
 
+1. On GitHub: **New repository** → name it (e.g. `ac225-pinn`) → **Public** → **do not** add README (repo must be empty).
+2. Copy the HTTPS URL, then in PowerShell:
+
 ```powershell
 cd "C:\Users\ogunn\Downloads\New folder\New folder"
-git init
-git add .
-git commit -m "Initial commit: Ac-225 PINN dashboard"
+.\connect_github.ps1 -RepoUrl "https://github.com/YOUR_USERNAME/YOUR_REPO.git"
 ```
 
-Create a **new public repository** on GitHub, then:
+Sign in when **Git Credential Manager** prompts you (browser or token).
+
+**Manual alternative:**
 
 ```powershell
-git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
-git branch -M main
-git push -u origin main
+cd "C:\Users\ogunn\Downloads\New folder\New folder"
+& "C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
+& "C:\Program Files\Git\bin\git.exe" push -u origin main
 ```
 
 Use **public** for the simplest free Community Cloud deploy. If the repo must stay private, Community Cloud may require a paid workspace—check current Streamlit pricing.
