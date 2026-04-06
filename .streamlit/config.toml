@@ -1,0 +1,8 @@
+# Listen on all interfaces so phones / other PCs on the same network can connect.
+# Firewall: allow inbound TCP on this port (default 8501) if Windows asks.
+[server]
+address = "0.0.0.0"
+port = 8501
+
+[browser]
+gatherUsageStats = false

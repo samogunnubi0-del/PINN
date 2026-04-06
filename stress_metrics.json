@@ -1,0 +1,7 @@
+{
+  "mean_abs_rel_error_all": 1.0343160905926847,
+  "mean_abs_rel_error_fail_zone_cases": 0.27788562699500907,
+  "r2_test": 0.9935123511173801,
+  "mae_test": 1.0207721459182076e+18,
+  "n_training_rows": 1200
+}

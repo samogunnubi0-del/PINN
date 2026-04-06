@@ -1,0 +1,32 @@
+# Virtual environments
+venv/
+.venv/
+env/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Local / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Streamlit (do not commit secrets)
+.streamlit/secrets.toml
+
+# Generated at runtime (optional; keep out of git if you calibrate locally)
+pinn_calibrated_weights.pth
+pinn_finetuned_weights.pth
+
+# Large archives not needed for the deployed app
+*.zip
+
+# Jupyter
+.ipynb_checkpoints/

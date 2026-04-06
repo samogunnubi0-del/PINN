@@ -1,0 +1,10 @@
+{
+  "pythonVersion": "3.11",
+  "pythonPath": "./venv/Scripts/python.exe",
+  "typeCheckingMode": "basic",
+  "include": ["."],
+  "exclude": ["**/.*", "**/node_modules", "**/.git", "**/__pycache__", ".venv", "venv", "**/.pytest_cache", "**/.mypy_cache"],
+  "stubPath": "",
+  "reportMissingImports": false,
+  "reportMissingTypeStubs": false
+}
