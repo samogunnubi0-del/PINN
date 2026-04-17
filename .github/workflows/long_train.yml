@@ -1,0 +1,80 @@
+# Run a full PINN training job on GitHub-hosted hardware (no local machine needed).
+#
+# How to use
+# ----------
+# 1. Push this workflow to GitHub (merge the PR that adds it).
+# 2. In the repo: Actions → "Long PINN training (cloud)" → Run workflow.
+# 3. Leave "Quick debug train" unchecked for the real 12k-epoch run (~hours on CPU).
+# 4. When the job finishes, open the run → Artifacts → download the ZIP
+#    (weights, loss plot, Ac-225 parity plot, full console log, trio test log).
+#
+# Notes
+# -----
+# - Free-tier Actions jobs are capped at ~6 hours; if training is killed, use
+#   workflow_dispatch input "Quick debug train" to validate the pipeline, or
+#   run a shorter custom train locally with PINN_QUICK_TRAIN=1.
+# - Artifacts are stored by GitHub (default retention applies unless changed below).
+
+name: Long PINN training (cloud)
+
+on:
+  workflow_dispatch:
+    inputs:
+      quick_train:
+        description: "Quick debug run (~520 epochs) instead of full 12k"
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: long-train-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Train (full or quick)
+        env:
+          PINN_FAST_CPU: "1"
+          PINN_QUICK_TRAIN: ${{ inputs.quick_train && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          echo "PINN_QUICK_TRAIN=${PINN_QUICK_TRAIN:-0}"
+          python -u train.py 2>&1 | tee train_full.log
+
+      - name: Trio validation after train
+        run: |
+          set -euo pipefail
+          python -u test_single.py 2>&1 | tee trio_after_train.log
+
+      - name: Upload training outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: pinn-train-${{ github.run_id }}
+          path: |
+            train_full.log
+            trio_after_train.log
+            pinn_trained_weights.pth
+            pinn_best_weights.pth
+            pinn_loss_history.png
+            pinn_ac225_pred_vs_true.png
+          if-no-files-found: warn
+          retention-days: 30
