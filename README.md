@@ -6,8 +6,10 @@ planning.
 
 ## Quick Start
 
+From the repository root (where `app.py` lives), in PowerShell:
+
 ```powershell
-cd "C:\Users\ogunn\Downloads\New folder\New folder"
+cd path\to\this-repo
 .\venv\Scripts\Activate.ps1
 streamlit run app.py
 ```
@@ -26,7 +28,7 @@ Opens at **http://localhost:8501** with 13 interactive tabs.
 | Test | Result |
 |------|--------|
 | A - Empty tank + flux | PASS (no alchemy) |
-| B - Ra-226 feed + flux | PASS (Ac-225 within 7% of ODE) |
+| B - Ra-226 feed + flux | PASS (Ac-225 vs ODE within ~25%; see `test_single.py`) |
 | C - Pure decay | PASS (correct chain, no ghost Ra-226) |
 
 ## Key Files
