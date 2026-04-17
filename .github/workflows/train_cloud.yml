@@ -1,0 +1,48 @@
+# Run train.py on GitHub-hosted runners (manual only).
+# Actions → "Train PINN (cloud)" → Run workflow → download artifact when done.
+
+name: Train PINN (cloud)
+
+on:
+  workflow_dispatch:
+    inputs:
+      quick_train:
+        description: "Shorter run (PINN_QUICK_TRAIN) for pipeline check"
+        type: boolean
+        default: false
+
+jobs:
+  train:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Train
+        env:
+          PINN_FAST_CPU: "1"
+          PINN_QUICK_TRAIN: ${{ inputs.quick_train && '1' || '0' }}
+        run: python -u train.py 2>&1 | tee train_cloud.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: train-outputs-${{ github.run_id }}
+          path: |
+            train_cloud.log
+            pinn_trained_weights.pth
+            pinn_best_weights.pth
+            pinn_loss_history.png
+            pinn_ac225_pred_vs_true.png
+          if-no-files-found: warn
