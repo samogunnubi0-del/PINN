@@ -18,7 +18,7 @@ Use **this folder** as the repo root (the one that contains `app.py` and `requir
 2. Copy the HTTPS URL, then in PowerShell:
 
 ```powershell
-cd "C:\Users\ogunn\Downloads\New folder\New folder"
+cd path\to\your-repo
 .\connect_github.ps1 -RepoUrl "https://github.com/YOUR_USERNAME/YOUR_REPO.git"
 ```
 
@@ -27,7 +27,7 @@ Sign in when **Git Credential Manager** prompts you (browser or token).
 **Manual alternative:**
 
 ```powershell
-cd "C:\Users\ogunn\Downloads\New folder\New folder"
+cd path\to\your-repo
 & "C:\Program Files\Git\bin\git.exe" remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
 & "C:\Program Files\Git\bin\git.exe" push -u origin main
 ```
