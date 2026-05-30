@@ -1,15 +1,18 @@
 # Wake Streamlit Community Cloud app before the ~12h idle sleep threshold.
-# Requires repo secret: STREAMLIT_APP_URL = https://your-app.streamlit.app
+# URL: https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app
+# Override via repo secret STREAMLIT_APP_URL if you change deployments.
 #
-# Actions → "Streamlit keepalive" → Run workflow (manual test after adding secret)
+# Actions → "Streamlit keepalive" → Run workflow
 
 name: Streamlit keepalive
 
 on:
   schedule:
-    # Every 6 hours (UTC): 00:00, 06:00, 12:00, 18:00
     - cron: "0 */6 * * *"
   workflow_dispatch:
+
+env:
+  STREAMLIT_APP_URL: ${{ secrets.STREAMLIT_APP_URL || 'https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app' }}
 
 jobs:
   keepalive:
@@ -23,15 +26,6 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Check secret
-        env:
-          STREAMLIT_APP_URL: ${{ secrets.STREAMLIT_APP_URL }}
-        run: |
-          if [ -z "$STREAMLIT_APP_URL" ]; then
-            echo "::error::Add repository secret STREAMLIT_APP_URL (your Streamlit Cloud URL)."
-            exit 1
-          fi
-
       - name: Install Playwright
         run: |
           python -m pip install --upgrade pip
@@ -39,6 +33,4 @@ jobs:
           playwright install chromium --with-deps
 
       - name: Wake Streamlit app
-        env:
-          STREAMLIT_APP_URL: ${{ secrets.STREAMLIT_APP_URL }}
         run: python scripts/keepalive.py

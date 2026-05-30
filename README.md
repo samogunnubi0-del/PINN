@@ -2,7 +2,8 @@
 
 Physics-informed neural network surrogate for **Actinium-225** production planning in the Ra-226 transmutation chain — relevant to **targeted alpha therapy (TAT)** radiopharmaceutical supply.
 
-**Live demo:** deploy with [Streamlit Community Cloud](docs/STREAMLIT_CLOUD_DEPLOY.md) (set `requirements-streamlit-cloud.txt`).
+**Live demo:** [https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app](https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app)  
+(Deploy details: [Streamlit Cloud](docs/STREAMLIT_CLOUD_DEPLOY.md) · `requirements-streamlit-cloud.txt`)
 
 ## Summary
 

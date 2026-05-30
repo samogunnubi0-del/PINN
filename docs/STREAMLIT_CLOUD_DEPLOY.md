@@ -1,6 +1,6 @@
 # Deploy IsotopePINN to Streamlit Community Cloud
 
-Public URL for reviewers (professors, admissions supplements, demos).
+Public demo: **https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app**
 
 ## Required repo files (push to GitHub)
 
