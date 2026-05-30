@@ -24,26 +24,39 @@ from pinn_model import (
     DEFAULT_N226_SCALE,
     DEFAULT_N225_SCALE,
     DEFAULT_NAC_SCALE,
+    DEFAULT_N227_SCALE,
+    DEFAULT_NAC227_SCALE,
     DEFAULT_PHI_SCALE,
     DEFAULT_T_REF_H,
+    load_isotope_pinn_checkpoint,
     neutron_energy_ev_to_feature_numpy,
 )
 from ra226_ac225_transmutation import IsotopeEnvironment, run_simulation
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-WEIGHTS_PATH = ROOT / "pinn_trained_weights.pth"
+
+
+def _weights_candidates() -> tuple[pathlib.Path, ...]:
+    return (
+        ROOT / "weights" / "pinn_best_weights.pth",
+        ROOT / "weights" / "pinn_trained_weights.pth",
+        ROOT / "pinn_trained_weights.pth",
+    )
+
+
+WEIGHTS_PATH = next((p for p in _weights_candidates() if p.is_file()), _weights_candidates()[-1])
 REPORT_PATH = pathlib.Path(__file__).resolve().parent / "FAILURE_CASE_ANALYSIS.md"
 FIG_DIR = pathlib.Path(__file__).resolve().parent / "figs"
 
 
 def load_model(device: torch.device = torch.device("cpu")) -> IsotopePINN:
-    model = IsotopePINN()
     if WEIGHTS_PATH.exists():
         try:
-            st = torch.load(WEIGHTS_PATH, map_location=device, weights_only=True)
-            model.load_state_dict(st)
+            model, _ = load_isotope_pinn_checkpoint(str(WEIGHTS_PATH), map_location=device)
+            return model
         except Exception:
-            print("Warning: failed to load weights; using untrained model.")
+            print("Warning: failed to load weights via checkpoint loader; using untrained model.")
+    model = IsotopePINN()
     model.to(device)
     model.eval()
     return model
@@ -77,6 +90,8 @@ def evaluate_pinn(
             np.full_like(times, n0_226_nn),
             np.full_like(times, n0_225_nn),
             np.full_like(times, n0_ac_nn),
+            np.zeros_like(times),  # Ra-227 initial (zero)
+            np.zeros_like(times),  # Ac-227 initial (zero)
         ]
     ).T
 
@@ -93,7 +108,7 @@ def evaluate_pinn(
 
 def simulate_ode(phi: float, energy_ev: float, times: np.ndarray, n226_0: float, n225_0: float, nac_0: float) -> np.ndarray:
     t_max = float(np.max(times))
-    env = IsotopeEnvironment(phi=phi, sigma_ra226=1e-24, neutron_energy_ev=energy_ev)
+    env = IsotopeEnvironment(phi=phi, neutron_energy_ev=energy_ev)
     n_points = max(200, int(t_max * 5) + 10)
     t_h, Y = run_simulation(env, t_end_h=t_max, n_points=n_points, N_ra0=n226_0, N_ra225_0=n225_0, N_ac0=nac_0)
     times_arr = np.asarray(times, dtype=float)
@@ -228,7 +243,7 @@ def run_failure_analysis():
     report_text = "".join(report_lines)
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write(report_text)
-    print(f"✓ Saved report: {REPORT_PATH}")
+    print(f"[OK] Saved report: {REPORT_PATH}")
 
     # Plot errors per scenario
     n_sc = len(results)
@@ -249,7 +264,17 @@ def run_failure_analysis():
     fig.tight_layout()
     fig.savefig(FIG_DIR / "errors_by_scenario.png", dpi=150)
     plt.close(fig)
-    print(f"✓ Saved plot: {FIG_DIR / 'errors_by_scenario.png'}")
+    try:
+        import graph_provenance
+        graph_provenance.record_graph_write(
+            ROOT,
+            (FIG_DIR / "errors_by_scenario.png").resolve(),
+            producer="failure_analysis.py",
+            run_id=graph_provenance.new_run_id(),
+        )
+    except Exception:
+        pass
+    print(f"[OK] Saved plot: {FIG_DIR / 'errors_by_scenario.png'}")
 
     return results
 

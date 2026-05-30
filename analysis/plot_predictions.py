@@ -20,34 +20,54 @@ from pinn_model import (
     DEFAULT_N226_SCALE,
     DEFAULT_N225_SCALE,
     DEFAULT_NAC_SCALE,
+    DEFAULT_N227_SCALE,
+    DEFAULT_NAC227_SCALE,
     DEFAULT_PHI_SCALE,
     DEFAULT_T_REF_H,
+    load_isotope_pinn_checkpoint,
     neutron_energy_ev_to_feature_numpy,
 )
 from ra226_ac225_transmutation import IsotopeEnvironment, run_simulation
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 FIG_DIR = pathlib.Path(__file__).resolve().parent / "figs"
-WEIGHTS_PATH = ROOT / "pinn_trained_weights.pth"
+
+_WEIGHT_CANDIDATES = (
+    ROOT / "weights" / "pinn_best_weights.pth",
+    ROOT / "weights" / "pinn_trained_weights.pth",
+    ROOT / "pinn_trained_weights.pth",
+)
 
 # Align plots with train.SINGLE_SUPPLY_MODE (virgin Ra-226 → Ac-225 narrative).
-SINGLE_SUPPLY_PLOTS = True
+SINGLE_SUPPLY_PLOTS = False
+
+
+def _resolve_state_dict(raw: object) -> dict | None:
+    if isinstance(raw, dict):
+        if "model_state" in raw and isinstance(raw["model_state"], dict):
+            return raw["model_state"]
+        if any(k.endswith(".weight") or k.endswith(".bias") for k in raw):
+            return raw  # type: ignore[return-value]
+    return None
 
 
 def load_model(device: torch.device = torch.device("cpu")) -> IsotopePINN:
-    model = IsotopePINN()
-    if WEIGHTS_PATH.exists():
+    weights_path: pathlib.Path | None = None
+    for p in _WEIGHT_CANDIDATES:
+        if p.exists():
+            weights_path = p
+            break
+
+    if weights_path is not None:
         try:
-            st = torch.load(WEIGHTS_PATH, map_location=device)
-            model.load_state_dict(st)
-        except Exception:
-            try:
-                # attempt loading keys-only state dict
-                model.load_state_dict(st)
-            except Exception:
-                print("Warning: failed to load weights cleanly; using uninitialized model.")
+            model, _ = load_isotope_pinn_checkpoint(str(weights_path), map_location=device)
+            print(f"Loaded weights: {weights_path}")
+            return model
+        except Exception as exc:
+            print(f"Warning: checkpoint loader failed for {weights_path} ({exc!r}); using untrained model.")
     else:
-        print(f"No weights found at {WEIGHTS_PATH}; using untrained model.")
+        print(f"No weights found (tried: {', '.join(str(p) for p in _WEIGHT_CANDIDATES)}); using untrained model.")
+    model = IsotopePINN()
     model.to(device)
     model.eval()
     return model
@@ -73,6 +93,8 @@ def evaluate_pinn(
     n0_226_nn = float(n226_0) / float(DEFAULT_N226_SCALE)
     n0_225_nn = float(n225_0) / float(DEFAULT_N225_SCALE)
     n0_ac_nn = float(nac_0) / float(DEFAULT_NAC_SCALE)
+    n0_227_nn = 0.0 / float(DEFAULT_N227_SCALE)
+    n0_ac227_nn = 0.0 / float(DEFAULT_NAC227_SCALE)
 
     inputs = np.vstack(
         [
@@ -82,6 +104,8 @@ def evaluate_pinn(
             np.full_like(times, n0_226_nn),
             np.full_like(times, n0_225_nn),
             np.full_like(times, n0_ac_nn),
+            np.full_like(times, n0_227_nn),
+            np.full_like(times, n0_ac227_nn),
         ]
     ).T
 
@@ -101,7 +125,7 @@ def evaluate_pinn(
 
 def simulate_ode(phi: float, energy_ev: float, times: np.ndarray, n226_0: float, n225_0: float, nac_0: float) -> tuple[np.ndarray, np.ndarray]:
     t_max = float(np.max(times))
-    env = IsotopeEnvironment(phi=phi, sigma_ra226=1e-24, neutron_energy_ev=energy_ev)
+    env = IsotopeEnvironment(phi=phi, neutron_energy_ev=energy_ev)
     n_points = max(200, int(t_max * 5) + 10)
     t_h, Y = run_simulation(env, t_end_h=t_max, n_points=n_points, N_ra0=n226_0, N_ra225_0=n225_0, N_ac0=nac_0)
     times = np.asarray(times, dtype=float)
@@ -132,14 +156,16 @@ def plot_case(
         ax.plot(times, y_true[:, idx], "k-", lw=2.2, label="ODE (reference)")
         ax.plot(times, pred_atoms[:, idx], "--", color=c, lw=2.2, label="PINN")
         ax.set_ylabel(f"{label}\n(atoms)", fontsize=11)
-        ax.set_yscale("log")
         ax.legend(loc="best", framealpha=0.92, fontsize=10)
         ax.grid(True, which="both", ls="--", alpha=0.35)
         ax.tick_params(axis="both", labelsize=10)
         pt = pred_atoms[:, idx]
         yt = y_true[:, idx]
         pos = np.concatenate([pt[np.isfinite(pt) & (pt > 0)], yt[np.isfinite(yt) & (yt > 0)]])
+        # Only use a log axis when this species actually has positive signal; an all-zero
+        # channel (e.g. Ra-226 in the Ra-225-dominant scenario) cannot be log-scaled.
         if pos.size >= 1:
+            ax.set_yscale("log")
             lo = float(np.min(pos)) * 0.25
             hi = float(np.max(pos)) * 4.0
             if lo < hi and lo > 0:
@@ -150,6 +176,16 @@ def plot_case(
     outpath = outdir / f"pred_vs_true_{name}.png"
     fig.savefig(outpath, dpi=160, bbox_inches="tight", facecolor="white")
     plt.close(fig)
+    try:
+        import graph_provenance
+        graph_provenance.record_graph_write(
+            ROOT,
+            outpath.resolve(),
+            producer="plot_predictions.py",
+            run_id=graph_provenance.new_run_id(),
+        )
+    except Exception:
+        pass
     return outpath
 
 

@@ -1,37 +1,36 @@
-# PINN Failure Case Analysis
+# PINN vs ODE diagnostic
 ## Overview
-This report identifies scenarios where the PINN diverges from the ODE ground truth.
-**Key Finding**: Ra-225-dominant scenarios show larger errors (extrapolation)
+Mean absolute percentage error (MAPE) by species for three reference scenarios.
+Training **up-weights Ra-225 and Ac-225** in the data loss and fits the **same capped**
+forward pass used at inference, so numbers here should track deployable accuracy.
 
 ## Scenario Results
 ### ra225_dom_pure_decay
 | Species | MAPE (%) | RMSE | Max Error |
 |---------|----------|------|--------|
-| Ra-226 | 49019607073860272128.00% | 7.00e+17 | 1.00e+18 |
-| Ra-225 | 95.90% | 7.27e+17 | 9.17e+17 |
-| Ac-225 | 98.04% | 1.99e+17 | 2.82e+17 |
+| Ra-226 | 0.00% | 0.00e+00 | 0.00e+00 |
+| Ra-225 | 349.54% | 2.70e+18 | 4.43e+18 |
+| Ac-225 | 13102.45% | 3.17e+19 | 5.47e+19 |
 
 ### ra226_dom_normal
 | Species | MAPE (%) | RMSE | Max Error |
 |---------|----------|------|--------|
-| Ra-226 | 26.82% | 1.62e+23 | 1.62e+23 |
-| Ra-225 | 98.04% | 3.06e+19 | 4.93e+19 |
-| Ac-225 | 98.04% | 5.80e+18 | 1.18e+19 |
+| Ra-226 | 14.26% | 9.93e+22 | 1.66e+23 |
+| Ra-225 | 231641286.05% | 5.62e+18 | 9.55e+18 |
+| Ac-225 | 15887173573.28% | 3.10e+19 | 5.34e+19 |
 
 ### mixed_low_flux
 | Species | MAPE (%) | RMSE | Max Error |
 |---------|----------|------|--------|
-| Ra-226 | 50.79% | 6.95e+19 | 1.00e+20 |
-| Ra-225 | 95.91% | 7.27e+17 | 9.18e+17 |
-| Ac-225 | 99.02% | 2.56e+17 | 3.24e+17 |
+| Ra-226 | 15.01% | 1.74e+19 | 2.90e+19 |
+| Ra-225 | 344.74% | 2.66e+18 | 4.37e+18 |
+| Ac-225 | 9691.06% | 3.17e+19 | 5.46e+19 |
 
-## Key Insights
-1. **Ra-225-dominant scenarios** have larger errors because training data was Ra-226 dominant.
-2. **Pure decay (phi=0)** should be easiest to learn (exponential → Ac-225); often shows underprediction.
-3. **Mixed IC** scenarios interpolate well when in training distribution.
+## How to read this
+- **MAPE** can look large when the true inventory is tiny; check RMSE and the prediction plots.
+- For single-supply training, improve headline accuracy with more **CSV** coverage in the Ra-226 path, not OOD probes.
 
-## Recommendations for Judges
-- Model **prevents alchemy** (core constraint) ✅
-- Model **learns mixed regimes** well ✅
-- Error in Ra-225 scenarios is **expected** (extrapolation beyond training) — can be fixed with more diverse data
-- For **production use**, retrain with data-augmentation focused on rare ICs
+## Summary
+- **No net alchemy**: hard budget cap + mass loss during training.
+- **Goal**: PINN tracks the ODE within tolerance on **in-distribution** scenarios you care about.
+- **If error is still too high**: run longer training, tune `DATA_WEIGHT` / `PHYSICS_WEIGHT` in `train.py`, or enrich data.

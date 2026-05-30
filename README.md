@@ -1,79 +1,105 @@
-# Ac-225 Production Intelligence
+# IsotopePINN
 
-A **physics-informed neural network (PINN)** that predicts Actinium-225 yields from the
-Ra-226 -> Ra-225 -> Ac-225 transmutation chain. Built for targeted alpha therapy production
-planning.
+Physics-informed neural network surrogate for **Actinium-225** production planning in the Ra-226 transmutation chain — relevant to **targeted alpha therapy (TAT)** radiopharmaceutical supply.
 
-## Quick Start
+**Live demo:** deploy with [Streamlit Community Cloud](docs/STREAMLIT_CLOUD_DEPLOY.md) (set `requirements-streamlit-cloud.txt`).
 
-```powershell
-cd "C:\Users\ogunn\Downloads\New folder\New folder"
-.\venv\Scripts\Activate.ps1
+## Summary
+
+| Item | Detail |
+|------|--------|
+| **Problem** | Ac-225 is scarce; planning irradiation (flux, energy, time) requires many stiff ODE solves |
+| **Approach** | 0D five-species Bateman ODE reference (NNDC/JENDL) + PINN surrogate with physics loss |
+| **Validation** | Six independent checks vs ODE; held-out Ac-225 median **~4.5%** relative error |
+| **Not validated** | Laboratory reactor data, patient pharmacokinetics, or 3D transport (MCNP/OpenMC) |
+
+## Results (ODE reference validation)
+
+| Check | Result |
+|-------|--------|
+| Empty-target safety (no production from zero inventory) | PASS |
+| Production scenario (14 MeV, full Ra-226 feed) | PASS (<10% Ac-225 vs ODE) |
+| Decay-chain ingrowth (Ra-225 → Ac-225, no flux) | PASS |
+| Species quality gate | PASS |
+| PINN vs ODE correlation | PASS |
+| Held-out scenarios (22 cases) | **4.51%** median Ac-225 error |
+
+Full report: [`results/v63_validation_20260530.json`](results/v63_validation_20260530.json)
+
+Weights checksum (SHA-256 prefix): `7c21debe` — file [`weights/pinn_best_weights.pth`](weights/pinn_best_weights.pth)
+
+## Quick start (local)
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Opens at **http://localhost:8501** with 13 interactive tabs.
+Open **Overview** → **Validation** → **About** in the app.
 
-## What This Is
+## Reproduce validation
 
-- A 4-layer MLP trained on 12,000 epochs of physics-informed loss
-- Learns Bateman decay equations, mass conservation, and 1/v energy scaling
-- Runs **500x+ faster** than traditional ODE solvers
-- Includes live reactor calibration via transfer learning (upload CSV, 30-second adapt)
+```bash
+pip install -r requirements.txt
+python test_single.py
+python analysis/validate_predictor.py
+python analysis/evaluate_quality_gate.py
+python analysis/correlation_check.py
+```
 
-## Trio Validation (all pass)
+Expected: all gates PASS; held-out Ac-225 median ~0.045 vs ODE.
 
-| Test | Result |
-|------|--------|
-| A - Empty tank + flux | PASS (no alchemy) |
-| B - Ra-226 feed + flux | PASS (Ac-225 within 7% of ODE) |
-| C - Pure decay | PASS (correct chain, no ghost Ra-226) |
+## Training (optional)
 
-## Key Files
+Full retrain is GPU-heavy (~4k epochs with physics pretrain). Entry point:
 
-| File | Purpose |
+```bash
+python train.py
+```
+
+Colab-friendly bundle: see `IsotopePINN_Colab_Run.ipynb` in the workspace root or train with env vars documented in `train.py`.
+
+## Deploy (Streamlit Cloud)
+
+1. Push this repo to GitHub (public).
+2. Connect at [share.streamlit.io](https://share.streamlit.io/) → main file `app.py`.
+3. Requirements file: **`requirements-streamlit-cloud.txt`** (CPU PyTorch).
+4. Ensure `weights/pinn_best_weights.pth` and `results/v63_validation_20260530.json` are committed.
+
+Details: [`docs/STREAMLIT_CLOUD_DEPLOY.md`](docs/STREAMLIT_CLOUD_DEPLOY.md)
+
+First load after idle sleep may take ~45–90 seconds (PyTorch + model load).
+
+## Repository layout
+
+| Path | Purpose |
 |------|---------|
-| `app.py` | Streamlit website (13 tabs, live prediction, training, calibration) |
-| `pinn_model.py` | PINN architecture + 8-term loss function |
-| `train.py` | Training pipeline (12k epochs, diverse ICs, augmentation) |
-| `test_single.py` | Trio validation test |
-| `ra226_ac225_transmutation.py` | ODE reference simulator |
-| `pinn_trained_weights.pth` | Pre-trained model weights |
+| `app.py` | Interactive demo (Overview, Screening, Validation, Methods, About) |
+| `pinn_model.py`, `train.py` | PINN architecture and training |
+| `ra226_ac225_transmutation.py` | Stiff ODE reference (Radau) |
+| `test_single.py` | Scenario integrity tests (Trio A/B/C) |
+| `analysis/` | Held-out validation, quality gate, correlation |
+| `results/` | Validation JSON, loss history |
+| `weights/` | Canonical trained checkpoint |
+| `docs/DATA_ASSUMPTIONS.md` | Nuclear data sources and modeling scope |
 
-## Website Tabs
+## Modeling scope
 
-1. **Why This Matters** - Ac-225 supply crisis, targeted alpha therapy
-2. **Live Prediction** - Interactive sliders, real-time isotope predictions
-3. **Live Training** - Watch the model learn + upload reactor data for calibration
-4. **Speed Benchmark** - PINN vs ODE timing (1,000 scenarios)
-5. **Dose Calculator** - Atoms to patient doses conversion
-6. **Project Timeline** - Animated orbital development history
-7. **Training Results** - Loss curves and parity plot
-8. **Plot Gallery** - Every visualization explained
-9. **Trio Validation** - Physics correctness tests
-10. **Struggles & Failures** - Honest bug documentation
-11. **Mistakes We Made** - Retrospective on judgment errors
-12. **Future Applications** - Clinical, supply chain, digital twin
-13. **Technical Details** - Architecture, loss, nuclear data, equations
+This is a **0D lumped** well-mixed target model (scalar flux and energy), not a full reactor or patient dose model. Chemistry, recovery yield, and shipping delays are post-processed in the app, not inside the PINN loss.
 
-## Nuclear Data (NNDC)
+## Limitations
 
-| Isotope | Half-life | Decay |
-|---------|-----------|-------|
-| Ra-226 | 1,600 years | Alpha |
-| Ra-225 | 14.9 days | Beta- to Ac-225 |
-| Ac-225 | 9.920 days | Alpha (4 alphas in chain) |
+- All reported errors are **PINN vs ODE**, not vs experiment.
+- Largest errors near **epithermal (~9.5%)** and **threshold (~8.5%)** neutron energies.
+- Do not use for regulatory release or clinical dosing without separate assay and qualified review.
 
-## Training
+## References
 
-Full training (one-time, ~2 hours on i7):
+Methods and citations are listed in the app **About** tab (Raissi et al. PINN framework; NNDC/JENDL nuclear data).
 
-```powershell
-.\venv\Scripts\python.exe train.py
-```
+## License
 
-Test:
-
-```powershell
-.\venv\Scripts\python.exe test_single.py
-```
+MIT — see [LICENSE](LICENSE).

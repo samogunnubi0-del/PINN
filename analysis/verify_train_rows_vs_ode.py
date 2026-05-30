@@ -17,7 +17,7 @@ sys.path.insert(0, str(ROOT))
 
 from ra226_ac225_transmutation import IsotopeEnvironment, run_simulation
 
-DATA_PATH = ROOT / "pinn_training_data.csv"
+DATA_PATH = ROOT / "data" / "pinn_training_data.csv"
 
 
 def ode_final_state(
@@ -28,7 +28,7 @@ def ode_final_state(
     n225_0: float,
     nac_0: float,
 ) -> np.ndarray:
-    env = IsotopeEnvironment(phi=phi, sigma_ra226=1e-24, neutron_energy_ev=energy_ev)
+    env = IsotopeEnvironment(phi=phi, neutron_energy_ev=energy_ev)
     n_pts = max(400, int(np.clip(time_h * 8, 400, 15000)))
     _t, Y = run_simulation(
         env,
@@ -38,7 +38,7 @@ def ode_final_state(
         N_ra225_0=n225_0,
         N_ac0=nac_0,
     )
-    return Y[-1].astype(np.float64)
+    return Y[-1, :3].astype(np.float64)
 
 
 def main() -> None:

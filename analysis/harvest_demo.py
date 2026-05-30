@@ -19,25 +19,38 @@ from pinn_model import (
     DEFAULT_N226_SCALE,
     DEFAULT_N225_SCALE,
     DEFAULT_NAC_SCALE,
+    DEFAULT_N227_SCALE,
+    DEFAULT_NAC227_SCALE,
     DEFAULT_PHI_SCALE,
     DEFAULT_T_REF_H,
+    load_isotope_pinn_checkpoint,
     neutron_energy_ev_to_feature_numpy,
 )
 from ra226_ac225_transmutation import IsotopeEnvironment, run_simulation
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-WEIGHTS_PATH = ROOT / "pinn_trained_weights.pth"
+
+
+def _weights_candidates() -> tuple[pathlib.Path, ...]:
+    return (
+        ROOT / "weights" / "pinn_best_weights.pth",
+        ROOT / "weights" / "pinn_trained_weights.pth",
+        ROOT / "pinn_trained_weights.pth",
+    )
+
+
+WEIGHTS_PATH = next((p for p in _weights_candidates() if p.is_file()), _weights_candidates()[-1])
 DEMO_DIR = pathlib.Path(__file__).resolve().parent / "demo_outputs"
 
 
 def load_model(device: torch.device = torch.device("cpu")) -> IsotopePINN:
-    model = IsotopePINN()
     if WEIGHTS_PATH.exists():
         try:
-            st = torch.load(WEIGHTS_PATH, map_location=device, weights_only=True)
-            model.load_state_dict(st)
+            model, _ = load_isotope_pinn_checkpoint(str(WEIGHTS_PATH), map_location=device)
+            return model
         except Exception:
-            print("Warning: failed to load weights.")
+            print("Warning: failed to load weights via checkpoint loader.")
+    model = IsotopePINN()
     model.to(device)
     model.eval()
     return model
@@ -64,6 +77,8 @@ def predict_trajectory(
     n0_226_nn = float(n226_0) / float(DEFAULT_N226_SCALE)
     n0_225_nn = float(n225_0) / float(DEFAULT_N225_SCALE)
     n0_ac_nn = float(nac_0) / float(DEFAULT_NAC_SCALE)
+    n0_227_nn = 0.0 / float(DEFAULT_N227_SCALE)
+    n0_ac227_nn = 0.0 / float(DEFAULT_NAC227_SCALE)
 
     inputs = np.vstack(
         [
@@ -73,6 +88,8 @@ def predict_trajectory(
             np.full_like(times, n0_226_nn),
             np.full_like(times, n0_225_nn),
             np.full_like(times, n0_ac_nn),
+            np.full_like(times, n0_227_nn),
+            np.full_like(times, n0_ac227_nn),
         ]
     ).T
 
@@ -149,6 +166,16 @@ def run_harvest_demo():
     fig.tight_layout()
     fig.savefig(DEMO_DIR / "harvest_timing_curve.png", dpi=150)
     plt.close(fig)
+    try:
+        import graph_provenance
+        graph_provenance.record_graph_write(
+            ROOT,
+            (DEMO_DIR / "harvest_timing_curve.png").resolve(),
+            producer="harvest_demo.py",
+            run_id=graph_provenance.new_run_id(),
+        )
+    except Exception:
+        pass
     print(f"\n✓ Saved plot: {DEMO_DIR / 'harvest_timing_curve.png'}")
 
     # Multi-scenario comparison
@@ -182,6 +209,16 @@ def run_harvest_demo():
     fig.tight_layout()
     fig.savefig(DEMO_DIR / "harvest_flux_comparison.png", dpi=150)
     plt.close(fig)
+    try:
+        import graph_provenance
+        graph_provenance.record_graph_write(
+            ROOT,
+            (DEMO_DIR / "harvest_flux_comparison.png").resolve(),
+            producer="harvest_demo.py",
+            run_id=graph_provenance.new_run_id(),
+        )
+    except Exception:
+        pass
     print(f"✓ Saved plot: {DEMO_DIR / 'harvest_flux_comparison.png'}")
 
     # Write summary

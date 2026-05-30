@@ -1,0 +1,3 @@
+# sigma_name,value_cm2,uncertainty_frac,source
+sigma_n2n_fast,2.7e-26,0.10,JENDL-5 spectrum avg
+sigma_ngamma_thermal,1.28e-23,0.05,ENDF/B-VIII thermal

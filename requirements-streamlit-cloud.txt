@@ -1,5 +1,5 @@
-# Streamlit Community Cloud (Linux): pull smaller CPU-only PyTorch wheels.
-# In the Cloud UI: Advanced settings → Requirements file → requirements-streamlit-cloud.txt
+# Streamlit Community Cloud (Linux): CPU-only PyTorch wheels.
+# In Cloud UI: Advanced settings → Requirements file → requirements-streamlit-cloud.txt
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch>=2.0.1,<3
 numpy>=1.24.3,<3

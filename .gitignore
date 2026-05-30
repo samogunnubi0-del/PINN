@@ -18,15 +18,51 @@ Thumbs.db
 .idea/
 .vscode/
 
-# Streamlit (do not commit secrets)
+# Streamlit secrets
 .streamlit/secrets.toml
+.env
+.env.*
+!.env.example
 
-# Generated at runtime (optional; keep out of git if you calibrate locally)
+# Runtime calibration outputs
 pinn_calibrated_weights.pth
 pinn_finetuned_weights.pth
 
-# Large archives not needed for the deployed app
+# Archives & zips
 *.zip
+archive/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Local Kaggle sync (reproduce via Colab notebook or train.py)
+kaggle_results/
+kaggle_kernel/
+kaggle_sync.py
+colab_script.txt
+
+# Extra checkpoints — canonical weights: weights/pinn_best_weights.pth only
+weights/pinn_best_weights_12k_colab_*.pth
+weights/pinn_best_weights_v63.pth
+weights/pinn_trained_weights.pth
+weights/pinn_training_resume.pt
+
+# Science-fair presentation docs (optional local copies)
+docs/ISEF_*.md
+docs/cursor_handoff.md
+
+# Large training artifacts (regenerate with train.py / Colab — over GitHub 100 MB limit)
+data/pinn_training_data.csv
+data/pinn_augmented_training_cache.csv
+data/pinn_augmented_training_cache.meta.json
+results/pinn_augmented_training_cache.csv
+results/pinn_augmented_training_cache.meta.json
+
+# Internal trace / attribution tooling (optional local)
+analysis/trace_evidence_report.py
+analysis/validation/trace_*
+docs/presentation_script_for_professor.txt
+
+scripts/scratch/
+scripts/kaggle/
+results/run_train_kaggle.py

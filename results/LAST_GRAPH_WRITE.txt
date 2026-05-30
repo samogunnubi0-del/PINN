@@ -1,0 +1,8 @@
+written_at_utc=2026-05-25T21:14:32.641627+00:00
+run_id=2ca5d354-5f7a-49b7-b176-0ba5420e579a
+relative_path=graphs/pinn_ac225_pred_vs_true_virgin_ic.png
+sha256=137383d3828751a77af954e81c405247795ac44f7defa9fb75f0c77d1360565a
+producer=train.py
+host=local
+data_path=/content/drive/MyDrive/IsotopePINN/data/pinn_training_data.csv
+train_script_rev=2026-05-03h-float64-option

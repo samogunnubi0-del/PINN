@@ -1,10 +1,21 @@
 {
-  "pythonVersion": "3.11",
-  "pythonPath": "./venv/Scripts/python.exe",
+  "pythonVersion": "3.12",
+  "pythonPath": "./.venv/Scripts/python.exe",
+  "venvPath": ".",
+  "venv": ".venv",
   "typeCheckingMode": "basic",
   "include": ["."],
-  "exclude": ["**/.*", "**/node_modules", "**/.git", "**/__pycache__", ".venv", "venv", "**/.pytest_cache", "**/.mypy_cache"],
-  "stubPath": "",
+  "exclude": [
+    "**/.*",
+    "**/node_modules",
+    "**/.git",
+    "**/__pycache__",
+    ".venv",
+    "venv",
+    "**/__pyrefly_virtual__/**",
+    "**/inmemory/**",
+    "**/*.pyi"
+  ],
   "reportMissingImports": false,
   "reportMissingTypeStubs": false
 }

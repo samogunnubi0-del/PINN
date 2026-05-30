@@ -1,8 +1,18 @@
-# Listen on all interfaces so phones / other PCs on the same network can connect.
-# Firewall: allow inbound TCP on this port (default 8501) if Windows asks.
 [server]
-address = "0.0.0.0"
-port = 8501
+headless = true
+enableCORS = false
+enableXsrfProtection = true
 
 [browser]
 gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"
+
+[theme]
+base = "dark"
+primaryColor = "#0ea5e9"
+backgroundColor = "#070913"
+secondaryBackgroundColor = "#0f1322"
+textColor = "#e8edf6"
+font = "sans serif"
