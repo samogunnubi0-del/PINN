@@ -38,12 +38,7 @@ You cannot disable sleep on the free tier without upgrading.
 
 A scheduled workflow (`.github/workflows/keepalive.yml`) opens your app in headless Chromium every **6 hours** and clicks Streamlit’s wake button if needed. HTTP pings alone do not start the app.
 
-1. Deploy on Streamlit Cloud and copy your public URL.
-2. GitHub → **Settings → Secrets and variables → Actions** → New repository secret:
-   - **Name:** `STREAMLIT_APP_URL`
-   - **Value:** `https://your-app.streamlit.app` (no trailing slash)
-3. **Actions → Streamlit keepalive → Run workflow** to test once.
-4. Scheduled runs continue automatically.
+URL is already set in the workflow to **https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app** (optional secret `STREAMLIT_APP_URL` overrides). **One-time test:** [Actions → Streamlit keepalive → Run workflow](https://github.com/samogunnubi0-del/PINN/actions/workflows/keepalive.yml). Scheduled runs every 6 hours.
 
 Not a 100% uptime guarantee — if a run fails, the app may still sleep. Still include GitHub + PDF in emails.
 
