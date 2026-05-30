@@ -5,7 +5,7 @@ Generates:
   - graphs/isef_isotope_evolution.png   (Ac-225 activity vs time + harvest window)
   - graphs/isef_loss_trajectory_12k.png (dual-axis loss + 12k projection)
   - graphs/isef_mass_conservation.png   (mass budget residuals)
-  - graphs/isef_parity_restyled.png     (restyled pred vs true)
+  - graphs/isef_parity_restyled.png     (held-out Ac-225 parity, 22 scenarios)
 
 Run: python scripts/isef_figures.py
 """
@@ -320,6 +320,48 @@ def plot_mass_conservation(model) -> None:
     _save(fig, "isef_mass_conservation.png")
 
 
+HELDOUT_DETAILS = ROOT / "analysis" / "validation" / "heldout_validation_details.csv"
+HELDOUT_SUMMARY = ROOT / "analysis" / "validation" / "heldout_validation_summary.csv"
+V63_VALIDATION = RESULTS / "v63_validation_20260530.json"
+
+
+def _canonical_heldout_ac225_median() -> tuple[float, int]:
+    """Official held-out Ac-225 median (22 scenarios, includes empty-target zeros)."""
+    if HELDOUT_SUMMARY.is_file():
+        df = pd.read_csv(HELDOUT_SUMMARY)
+        row = df.loc[(df["regime"] == "all") & (df["case_type"] == "all") & (df["species"] == "Ac-225")]
+        if not row.empty:
+            n = int(row.iloc[0]["n"])
+            return float(row.iloc[0]["median_rel_error"]), n
+    if V63_VALIDATION.is_file():
+        import json
+
+        payload = json.loads(V63_VALIDATION.read_text(encoding="utf-8"))
+        med = float(payload["criteria"]["heldout_ac225_median_rel"])
+        return med, 22
+    return float("nan"), 0
+
+
+def _load_heldout_ac225_parity() -> tuple[np.ndarray, np.ndarray, np.ndarray, int] | None:
+    """Held-out Ac-225 scenarios with positive truth (plotted on log axes)."""
+    if not HELDOUT_DETAILS.is_file():
+        return None
+    df = pd.read_csv(HELDOUT_DETAILS)
+    if not {"species", "truth", "prediction"}.issubset(df.columns):
+        return None
+    sub = df.loc[df["species"] == "Ac-225"].copy()
+    sub["truth"] = sub["truth"].astype(float)
+    sub["prediction"] = sub["prediction"].astype(float)
+    n_all = int(len(sub))
+    sub = sub.loc[(sub["truth"] > 0) & (sub["prediction"] > 0)]
+    if sub.empty:
+        return None
+    t_pos = sub["truth"].to_numpy(dtype=float)
+    p_pos = sub["prediction"].to_numpy(dtype=float)
+    rel = np.abs(p_pos - t_pos) / t_pos
+    return t_pos, p_pos, rel, n_all
+
+
 def _load_training_csv_for_parity() -> pd.DataFrame | None:
     """Load supervised rows; fall back to kaggle_kernel copy if data/ is empty."""
     candidates = [
@@ -352,41 +394,69 @@ def _ensure_parity_init_columns(tdf: pd.DataFrame) -> pd.DataFrame:
 
 
 def plot_parity_restyled(model) -> None:
-    """Restyled Ac-225 parity: PINN vs ODE targets using correct init_N* inputs."""
-    tdf = _load_training_csv_for_parity()
-    if tdf is None:
-        print("[isef_figures] skip parity — no pinn_training_data.csv")
-        return
-    if not {"N_Ac225", "time", "phi", "energy"}.issubset(tdf.columns):
-        print("[isef_figures] skip parity — missing columns")
-        return
+    """Restyled Ac-225 parity on 22 held-out scenarios (matches v63 validation JSON)."""
+    held = _load_heldout_ac225_parity()
+    dataset = "heldout_22"
+    if held is not None:
+        t_pos, p_pos, rel, n_all = held
+        med, n_official = _canonical_heldout_ac225_median()
+        if not np.isfinite(med):
+            med = float(np.median(rel))
+            n_official = n_all
+        title = rf"$^{{225}}$Ac parity — held-out ({n_official} scenarios)"
+        subtitle = f"PINN vs ODE reference · v63 weights · {len(t_pos)} points with $N_{{Ac}}$ > 0 shown"
+    else:
+        dataset = "training_sample"
+        tdf = _load_training_csv_for_parity()
+        if tdf is None:
+            print("[isef_figures] skip parity — no held-out CSV or pinn_training_data.csv")
+            return
+        if not {"N_Ac225", "time", "phi", "energy"}.issubset(tdf.columns):
+            print("[isef_figures] skip parity — missing columns")
+            return
 
-    tdf = _ensure_parity_init_columns(tdf)
-    pos = tdf["N_Ac225"].astype(float) > 0
-    sub = tdf.loc[pos]
-    if len(sub) > 800:
-        sub = sub.sample(n=800, random_state=42)
+        tdf = _ensure_parity_init_columns(tdf)
+        pos = tdf["N_Ac225"].astype(float) > 0
+        sub = tdf.loc[pos]
+        if len(sub) > 800:
+            sub = sub.sample(n=800, random_state=42)
 
-    device = torch.device("cpu")
-    dtype = getattr(getattr(model, "daughter_rate_log_scales", None), "dtype", torch.float32)
-    inputs, targets = prepare_training_tensors(sub, device, dtype=dtype)
-    model.eval()
-    with torch.no_grad():
-        pred_norm = model(inputs)
-    true_atoms = targets[:, 2].cpu().numpy()
-    pred_atoms = (pred_norm[:, 2] * DEFAULT_NAC_SCALE).cpu().numpy()
-    mask = (true_atoms > 0) & (pred_atoms > 0)
-    if not mask.any():
-        print("[isef_figures] skip parity — no positive Ac-225 pairs")
-        return
+        device = torch.device("cpu")
+        dtype = getattr(getattr(model, "daughter_rate_log_scales", None), "dtype", torch.float32)
+        inputs, targets = prepare_training_tensors(sub, device, dtype=dtype)
+        model.eval()
+        with torch.no_grad():
+            pred_norm = model(inputs)
+        true_atoms = targets[:, 2].cpu().numpy()
+        pred_atoms = (pred_norm[:, 2] * DEFAULT_NAC_SCALE).cpu().numpy()
+        mask = (true_atoms > 0) & (pred_atoms > 0)
+        if not mask.any():
+            print("[isef_figures] skip parity — no positive Ac-225 pairs")
+            return
 
-    t_pos = true_atoms[mask]
-    p_pos = pred_atoms[mask]
-    med = float(np.median(np.abs(p_pos - t_pos) / t_pos))
+        t_pos = true_atoms[mask]
+        p_pos = pred_atoms[mask]
+        rel = np.abs(p_pos - t_pos) / t_pos
+        med = float(np.median(rel))
+        title = r"$^{225}$Ac parity (training sample)"
+        subtitle = "Fallback — regenerate held-out CSV for canonical metric"
+        n_official = n_pts
+
+    n_pts = int(len(t_pos))
+    point_size = 48 if n_pts <= 30 else 12
 
     fig, ax = plt.subplots(figsize=(7, 7))
     with plt.rc_context(DARK_RC):
-        sc = ax.scatter(t_pos, p_pos, c=np.log10(np.abs(p_pos - t_pos) / t_pos + 1e-12), s=12, alpha=0.55, cmap="viridis")
+        sc = ax.scatter(
+            t_pos,
+            p_pos,
+            c=np.log10(rel + 1e-12),
+            s=point_size,
+            alpha=0.75 if n_pts <= 30 else 0.55,
+            cmap="viridis",
+            edgecolors="#0f172a",
+            linewidths=0.4 if n_pts <= 30 else 0.0,
+        )
         lo = min(t_pos.min(), p_pos.min()) * 0.5
         hi = max(t_pos.max(), p_pos.max()) * 2.0
         ax.plot([lo, hi], [lo, hi], color="#e2e8f0", ls="--", lw=1, label=r"$y=x$")
@@ -394,14 +464,31 @@ def plot_parity_restyled(model) -> None:
         ax.set_yscale("log")
         ax.set_xlabel(r"True $N_{^{225}\mathrm{Ac}}$ (atoms)")
         ax.set_ylabel(r"Predicted $N_{^{225}\mathrm{Ac}}$ (atoms)")
-        ax.set_title(r"$^{225}$Ac parity (ISEF restyled)")
-        ax.text(0.05, 0.95, f"Median rel. error: {med:.2%}", transform=ax.transAxes, va="top", color="#e2e8f0")
+        ax.set_title(title)
+        ax.text(
+            0.05,
+            0.95,
+            f"Median rel. error: {med:.2%}\n{subtitle}",
+            transform=ax.transAxes,
+            va="top",
+            color="#e2e8f0",
+            fontsize=10,
+        )
         cbar = plt.colorbar(sc, ax=ax, label=r"$\log_{10}$ rel. error")
         style_colorbar_dark(cbar)
         ax.legend(loc="lower right")
         ax.grid(True, which="both", alpha=0.35)
         _style_figure(ax)
-    _save(fig, "isef_parity_restyled.png", {"n_points": int(mask.sum()), "median_rel": med})
+    _save(
+        fig,
+        "isef_parity_restyled.png",
+        {
+            "n_points": n_pts,
+            "n_heldout_official": n_official if held is not None else n_pts,
+            "median_rel": med,
+            "dataset": dataset,
+        },
+    )
 
 
 def main() -> None:
