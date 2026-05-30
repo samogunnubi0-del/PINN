@@ -1,395 +1,331 @@
 """
-Tri-fold science fair board preview (48" × 36") as one PNG.
+Tri-fold board PREVIEW — optimized for on-screen reading (not tiny 48×36 print scale).
 
-Layout follows standard 3-panel board rules (Mit-style):
-  Left   — Background, Research Question, Hypothesis, Expected Outcomes
-  Center — Title, name, Methodology (numbered steps)
-  Right  — Results table, small figures with captions, Conclusions
-  Footer — Key References, Acknowledgements, demo link
+Uses Pillow for crisp text and properly resized figures.
 
 Run:  python scripts/generate_board_preview.py
-Out:   poster/board_preview.png
+Out:   poster/board_preview.png  (3600 × 2700 px, 4:3)
 """
 from __future__ import annotations
 
 import textwrap
 from pathlib import Path
 
-import matplotlib.image as mpimg
-import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
-from matplotlib.patches import FancyBboxPatch, Rectangle
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHS = ROOT / "graphs"
 OUT = ROOT / "poster" / "board_preview.png"
 
-# Standard tri-fold: 48" wide × 36" tall; 72 dpi → crisp preview
-DPI = 72
-W_IN, H_IN = 48, 36
+# Canvas: 4:3 like a 48×36 board; big enough to read when opened full-screen
+W, H = 3600, 2700
+FOOTER_H = 220
+COL_W = W // 3
+MARGIN = 48
 
-# Panel inner margin (fraction of each panel axis)
-PAD = 0.06
-
-# Typography — readable from ~6 ft at full print size (pt on 48×36 canvas)
-FS_TITLE = 40
-FS_SUBTITLE = 22
-FS_SECTION = 26
-FS_BODY = 20
-FS_SMALL = 17
-FS_CAPTION = 16
-FS_FOOTER = 14
-
-
-def _wrap(text: str, width: int) -> str:
-    return "\n".join(textwrap.wrap(text, width=width))
+# Colors
+BG = (209, 213, 219)
+WHITE = (255, 255, 255)
+PANEL_L = (248, 250, 252)
+PANEL_R = (248, 250, 252)
+INK = (15, 23, 42)
+MUTED = (71, 85, 105)
+ACCENT = (29, 78, 216)
+PASS = (5, 150, 105)
+RULE = (30, 41, 59)
 
 
-def _load_img(path: Path):
-    return mpimg.imread(str(path)) if path.is_file() else None
+def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    names = ("arialbd.ttf", "Arial Bold.ttf") if bold else ("arial.ttf", "Arial.ttf")
+    for name in names:
+        path = Path("C:/Windows/Fonts") / name
+        if path.is_file():
+            return ImageFont.truetype(str(path), size)
+    return ImageFont.load_default()
 
 
-def _section_header(ax, y: float, title: str) -> float:
-    """Draw ALL-CAPS section label + rule; return y below header."""
-    ax.text(PAD, y, title.upper(), fontsize=FS_SECTION, fontweight="bold", va="top", ha="left", color="#111")
-    ax.plot([PAD, 1 - PAD], [y - 0.018, y - 0.018], color="#222", lw=1.5, transform=ax.transAxes, clip_on=False)
-    return y - 0.045
+def _wrap(text: str, width: int) -> list[str]:
+    return textwrap.wrap(text, width=width) or [""]
 
 
-def _body(ax, y: float, text: str, *, width: int = 52, size: int = FS_BODY) -> float:
-    wrapped = _wrap(text, width)
-    lines = wrapped.count("\n") + 1
-    ax.text(PAD, y, wrapped, fontsize=size, va="top", ha="left", color="#222", linespacing=1.25)
-    return y - lines * 0.028 - 0.02
+def _line_h(draw: ImageDraw.ImageDraw, font, lines: list[str], spacing: int = 6) -> int:
+    if not lines:
+        return 0
+    bbox = draw.textbbox((0, 0), "Ay", font=font)
+    lh = bbox[3] - bbox[1]
+    return len(lines) * (lh + spacing) - spacing
 
 
-def _figure_block(ax, y: float, img_path: Path, fig_num: int, caption: str, *, w: float, h: float) -> float:
-    """Place a small figure + Mit-style caption; return y below block."""
-    x0 = PAD
-    img = _load_img(img_path)
-    if img is not None:
-        inset = ax.inset_axes([x0, y - h, w, h])
-        inset.imshow(img)
-        inset.set_xticks([])
-        inset.set_yticks([])
-        for spine in inset.spines.values():
-            spine.set_edgecolor("#666")
-            spine.set_linewidth(0.6)
-    else:
-        ax.text(x0 + w / 2, y - h / 2, f"[missing {img_path.name}]", ha="center", va="center", fontsize=FS_SMALL)
-
-    cap = f"Figure {fig_num}: {_wrap(caption, width=int(w * 95))}"
-    cap_lines = cap.count("\n") + 1
-    ax.text(x0, y - h - 0.012, cap, fontsize=FS_CAPTION, va="top", ha="left", color="#333", linespacing=1.2)
-    return y - h - cap_lines * 0.022 - 0.025
+def _draw_paragraph(
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    text: str,
+    font,
+    fill=INK,
+    width: int = 42,
+    spacing: int = 6,
+) -> int:
+    lines = _wrap(text, width)
+    for line in lines:
+        draw.text((x, y), line, font=font, fill=fill)
+        bbox = draw.textbbox((x, y), line, font=font)
+        y = bbox[3] + spacing
+    return y
 
 
-def _setup_panel(ax, face: str = "#ffffff") -> None:
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.axis("off")
-    ax.add_patch(Rectangle((0, 0), 1, 1, facecolor=face, edgecolor="none", zorder=0))
+def _section(draw: ImageDraw.ImageDraw, x: int, y: int, title: str, col_w: int) -> int:
+    f = _font(28, bold=True)
+    draw.text((x, y), title.upper(), font=f, fill=INK)
+    y += 38
+    draw.line([(x, y), (x + col_w - 2 * MARGIN, y)], fill=RULE, width=2)
+    return y + 20
+
+
+def _paste_figure(
+    canvas: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    path: Path,
+    fig_num: int,
+    caption: str,
+    max_w: int,
+    max_h: int,
+) -> int:
+    if not path.is_file():
+        draw.text((x, y), f"[Missing {path.name}]", font=_font(18), fill=(180, 0, 0))
+        return y + 40
+
+    img = Image.open(path).convert("RGBA")
+    img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
+    # Center in box
+    ox = x + (max_w - img.width) // 2
+    canvas.paste(img, (ox, y), img if img.mode == "RGBA" else None)
+    draw.rectangle([x, y, x + max_w, y + img.height], outline=(120, 120, 120), width=1)
+
+    cy = y + img.height + 10
+    cap_font = _font(17)
+    cap = f"Figure {fig_num}: {caption}"
+    for line in _wrap(cap, width=52):
+        draw.text((x, cy), line, font=cap_font, fill=MUTED)
+        cy += 22
+    return cy + 12
+
+
+class Column:
+    def __init__(self, x0: int, width: int, bg: tuple):
+        self.x0 = x0
+        self.width = width
+        self.bg = bg
+        self.y = MARGIN + 8
+
+    def inner_x(self) -> int:
+        return self.x0 + MARGIN
 
 
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
 
-    fig = plt.figure(figsize=(W_IN, H_IN), facecolor="#d1d5db")
-    gs = GridSpec(
-        20, 3,
-        figure=fig,
-        height_ratios=[1] * 18 + [0.55, 0.45],
-        width_ratios=[1, 1, 1],
-        hspace=0.04,
-        wspace=0.06,
-        left=0.015,
-        right=0.985,
-        top=0.98,
-        bottom=0.02,
-    )
+    canvas = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(canvas)
 
-    ax_l = fig.add_subplot(gs[0:18, 0])
-    ax_c = fig.add_subplot(gs[0:18, 1])
-    ax_r = fig.add_subplot(gs[0:18, 2])
-    ax_f = fig.add_subplot(gs[18:20, :])
+    body_h = H - FOOTER_H
+    for i, bg in enumerate((PANEL_L, WHITE, PANEL_R)):
+        draw.rectangle([i * COL_W, 0, (i + 1) * COL_W - 1, body_h], fill=bg)
 
-    _setup_panel(ax_l, "#f8fafc")
-    _setup_panel(ax_c, "#ffffff")
-    _setup_panel(ax_r, "#f8fafc")
-    _setup_panel(ax_f, "#eef2f7")
+    # Fold lines
+    for fx in (COL_W, 2 * COL_W):
+        draw.line([(fx, 20), (fx, body_h - 20)], fill=(148, 163, 184), width=2)
 
-    # Fold guides (on main figure)
-    for fx in (1 / 3, 2 / 3):
-        fig.add_artist(
-            plt.Line2D([fx, fx], [0.04, 0.92], transform=fig.transFigure, color="#94a3b8", ls="--", lw=1.2, zorder=0)
-        )
+    f_title = _font(44, bold=True)
+    f_sub = _font(24)
+    f_body = _font(22)
+    f_small = _font(19)
+    f_bold = _font(22, bold=True)
 
-    # ===================== LEFT PANEL =====================
-    y = 0.97
-    y = _section_header(ax_l, y, "Background")
-    y = _body(
-        ax_l,
-        y,
-        "Actinium-225 is a scarce alpha-emitting radiopharmaceutical used in targeted alpha therapy "
-        "(TAT) for cancer. Global supply limits clinical trials and patient access.",
-        width=48,
-    )
-    y = _body(
-        ax_l,
-        y,
-        "Planning irradiation — neutron flux, energy, and time — requires solving a stiff five-isotope "
-        "transmutation chain many times. Classical ODE integrators (Radau) are accurate but too slow "
-        "for large parameter sweeps.",
-        width=48,
-    )
+    inner_w = COL_W - 2 * MARGIN
+    fig_w = inner_w
+    fig_h_small = 260
+    fig_h_med = 300
 
-    chain = FancyBboxPatch(
-        (PAD, y - 0.11),
-        1 - 2 * PAD,
-        0.10,
-        boxstyle="square,pad=0.008",
-        facecolor="#f0fdf4",
-        edgecolor="#059669",
-        linewidth=1.2,
-        transform=ax_l.transAxes,
-    )
-    ax_l.add_patch(chain)
-    ax_l.text(
-        PAD + 0.02,
-        y - 0.02,
-        "Five-species chain (0D)\nRa-226 → Ra-225 → Ac-225  (product)\nRa-226 → Ra-227 → Ac-227  (impurity)",
-        transform=ax_l.transAxes,
-        fontsize=FS_SMALL,
-        va="top",
-        ha="left",
-    )
-    y -= 0.14
+    # ==================== LEFT ====================
+    L = Column(0, COL_W, PANEL_L)
+    x = L.inner_x()
 
-    y = _section_header(ax_l, y, "Research Question")
-    rq = FancyBboxPatch(
-        (PAD, y - 0.13),
-        1 - 2 * PAD,
-        0.12,
-        boxstyle="square,pad=0.008",
-        facecolor="#eff6ff",
-        edgecolor="#1e40af",
-        linewidth=1.5,
-        transform=ax_l.transAxes,
-    )
-    ax_l.add_patch(rq)
-    ax_l.text(
-        PAD + 0.02,
-        y - 0.015,
-        _wrap(
-            "Can a physics-informed neural network accurately and rapidly predict Ac-225 inventory "
-            "across diverse irradiation scenarios compared to a trusted Bateman ODE reference?",
-            width=44,
-        ),
-        transform=ax_l.transAxes,
-        fontsize=FS_BODY,
-        fontweight="bold",
-        va="top",
-        ha="left",
-        linespacing=1.2,
-    )
-    y -= 0.16
+    L.y = _section(draw, x, L.y, "Background", COL_W)
+    L.y = _draw_paragraph(
+        draw, x, L.y,
+        "Actinium-225 is a scarce alpha-emitting radiopharmaceutical used in targeted alpha therapy (TAT) for cancer. Supply limits trials and treatment access.",
+        f_body, width=46,
+    ) + 8
+    L.y = _draw_paragraph(
+        draw, x, L.y,
+        "Planning irradiation (flux, energy, time) requires a stiff five-isotope chain solved many times. ODE integrators are accurate but too slow for large sweeps.",
+        f_body, width=46,
+    ) + 16
 
-    y = _section_header(ax_l, y, "Hypothesis")
-    y = _body(
-        ax_l,
-        y,
-        "If Bateman physics is embedded in the network architecture and training loss, the PINN will "
-        "match the ODE within 10% on held-out production scenarios while enabling orders-of-magnitude "
-        "faster screening than sequential ODE integration.",
-        width=48,
-    )
+    # Chain box
+    box_h = 100
+    draw.rounded_rectangle([x, L.y, x + inner_w, L.y + box_h], radius=8, outline=PASS, width=2, fill=(240, 253, 244))
+    draw.text((x + 14, L.y + 10), "Five-species chain (0D)", font=f_bold, fill=INK)
+    draw.text((x + 14, L.y + 38), "Ra-226 → Ra-225 → Ac-225  (product)", font=f_small, fill=INK)
+    draw.text((x + 14, L.y + 64), "Ra-226 → Ra-227 → Ac-227  (impurity)", font=f_small, fill=INK)
+    L.y += box_h + 24
 
-    y = _section_header(ax_l, y, "Expected Outcomes")
-    outcomes = (
-        "• Six validation gates PASS\n"
-        "• Held-out Ac-225 < 10% vs ODE\n"
-        "• Best: thermal / 14 MeV (~4–5%)\n"
-        "• Hardest: epithermal / threshold"
+    L.y = _section(draw, x, L.y, "Research Question", COL_W)
+    rq_h = 130
+    draw.rounded_rectangle([x, L.y, x + inner_w, L.y + rq_h], radius=8, outline=ACCENT, width=2, fill=(239, 246, 255))
+    rq_lines = _wrap(
+        "Can a physics-informed neural network accurately and rapidly predict Ac-225 inventory across diverse irradiation scenarios compared to a trusted Bateman ODE reference?",
+        44,
     )
-    ax_l.text(PAD, y, outcomes, fontsize=FS_SMALL, va="top", ha="left", linespacing=1.35, color="#222")
+    ty = L.y + 14
+    for line in rq_lines:
+        draw.text((x + 14, ty), line, font=f_bold, fill=INK)
+        ty += 28
+    L.y += rq_h + 24
 
-    # ===================== CENTER PANEL =====================
-    ax_c.text(
-        0.5,
-        0.98,
-        _wrap("Computational Surrogate for Ac-225 Production Planning in Targeted Alpha Therapy", width=34),
-        fontsize=FS_TITLE - 4,
-        fontweight="bold",
-        ha="center",
-        va="top",
-        color="#0f172a",
-        linespacing=1.08,
-    )
-    ax_c.text(0.5, 0.84, "Samuel Ogunnubi", fontsize=FS_SUBTITLE, fontweight="bold", ha="center", va="top")
-    ax_c.text(
-        0.5,
-        0.795,
-        "Anne Arundel Community College · Dual Enrollment · May 2026",
-        fontsize=FS_SUBTITLE - 2,
-        ha="center",
-        va="top",
-        color="#475569",
-    )
+    L.y = _section(draw, x, L.y, "Hypothesis", COL_W)
+    L.y = _draw_paragraph(
+        draw, x, L.y,
+        "If Bateman physics is embedded in the network and loss, the PINN will match the ODE within 10% on held-out scenarios and run much faster than repeated ODE solves.",
+        f_body, width=46,
+    ) + 12
 
-    y = 0.72
-    y = _section_header(ax_c, y, "Methodology")
-    steps = (
-        "1. Reference model: 0D five-species Bateman ODE with NNDC/ENSDF half-lives and JENDL cross "
-        "sections; stiff Radau integrator generates training targets.\n\n"
-        "2. Training coverage: Scenarios across thermal, epithermal, threshold (~6.4 MeV), and 14 MeV "
-        "energies; virgin and recycled inventories.\n\n"
-        "3. Surrogate: Physics-informed NN with semi-analytic Bateman backbone and bounded corrections.\n\n"
-        "4. Training: 600-epoch physics pretrain + 3,400-epoch joint training (v63 weights); mass "
-        "conservation in loss.\n\n"
-        "5. Validation: Six independent gates + 22 held-out scenarios (seed 42).\n\n"
-        "6. Demo: Streamlit app for live PINN vs ODE comparison and parameter screening."
-    )
-    ax_c.text(PAD, y, steps, fontsize=FS_SMALL - 1, va="top", ha="left", linespacing=1.25, color="#222")
+    L.y = _section(draw, x, L.y, "Expected Outcomes", COL_W)
+    for bullet in (
+        "Six validation gates PASS",
+        "Held-out Ac-225 median < 10%",
+        "Best: thermal & 14 MeV (~4–5%)",
+        "Hardest: epithermal & threshold",
+    ):
+        draw.text((x + 8, L.y), f"•  {bullet}", font=f_small, fill=INK)
+        L.y += 30
 
-    # Small supporting figure — ~10% panel height (board rule: figures support text, not dominate)
-    _figure_block(
-        ax_c,
-        0.19,
+    # ==================== CENTER ====================
+    C = Column(COL_W, COL_W, WHITE)
+    cx = C.x0 + COL_W // 2
+    title_lines = _wrap(
+        "Computational Surrogate for Ac-225 Production Planning in Targeted Alpha Therapy",
+        32,
+    )
+    ty = MARGIN + 10
+    for line in title_lines:
+        bbox = draw.textbbox((0, 0), line, font=f_title)
+        tw = bbox[2] - bbox[0]
+        draw.text((cx - tw // 2, ty), line, font=f_title, fill=INK)
+        ty += 52
+    ty += 8
+    for line, font in (("Samuel Ogunnubi", _font(28, bold=True)), ("Anne Arundel Community College · May 2026", f_sub)):
+        bbox = draw.textbbox((0, 0), line, font=font)
+        tw = bbox[2] - bbox[0]
+        draw.text((cx - tw // 2, ty), line, font=font, fill=MUTED if font == f_sub else INK)
+        ty += 36
+    C.y = ty + 20
+
+    x = C.inner_x()
+    C.y = _section(draw, x, C.y, "Methodology", COL_W)
+    steps = [
+        "Build 0D Bateman ODE reference (NNDC/JENDL data, Radau solver).",
+        "Generate training scenarios: thermal, epithermal, threshold, 14 MeV.",
+        "Train PINN: Bateman backbone + physics loss (600 pretrain + 3400 joint).",
+        "Enforce mass budget — no production from empty target.",
+        "Validate: six independent gates + 22 held-out scenarios.",
+        "Streamlit demo: live PINN vs ODE + parameter screening.",
+    ]
+    for i, step in enumerate(steps, 1):
+        draw.text((x, C.y), f"{i}.", font=f_bold, fill=ACCENT)
+        C.y = _draw_paragraph(draw, x + 28, C.y, step, f_small, width=42) + 6
+
+    C.y = _paste_figure(
+        canvas, draw, x, C.y + 8,
         GRAPHS / "isef_mass_conservation.png",
-        1,
-        "Atom budget drift (ppm) vs time; PINN within ±10 ppm band.",
-        w=0.78,
-        h=0.10,
+        1, "Atom budget drift (ppm); PINN within ±10 ppm band.",
+        fig_w, fig_h_small,
     )
 
-    # ===================== RIGHT PANEL =====================
-    y = 0.97
-    y = _section_header(ax_r, y, "Results")
-    ax_r.text(
-        PAD,
-        y,
-        "Overall: 6/6 PASS  ·  Held-out Ac-225: 4.51% median  ·  Weights v63",
-        fontsize=FS_SMALL,
-        fontweight="bold",
-        va="top",
-        color="#059669",
-    )
-    y -= 0.05
+    # ==================== RIGHT ====================
+    R = Column(2 * COL_W, COL_W, PANEL_R)
+    x = R.inner_x()
+    R.y = _section(draw, x, R.y, "Results", COL_W)
+    draw.text((x, R.y), "6/6 PASS  ·  4.51% held-out Ac-225  ·  v63 weights", font=f_bold, fill=PASS)
+    R.y += 36
 
     rows = [
         ("Empty-target safety", "PASS"),
         ("Production (14 MeV)", "PASS (9.9%)"),
         ("Decay-chain ingrowth", "PASS"),
-        ("Species quality gate", "PASS"),
-        ("PINN vs ODE correlation", "PASS"),
-        ("Held-out Ac-225 (22)", "4.51% median"),
+        ("Quality gate", "PASS"),
+        ("Correlation", "PASS"),
+        ("Held-out (22 scenarios)", "4.51%"),
     ]
-    row_h = 0.032
-    for i, (label, val) in enumerate(rows):
-        yy = y - i * row_h
-        ax_r.text(PAD, yy, label, fontsize=FS_SMALL, va="top", ha="left")
-        ax_r.text(0.72, yy, val, fontsize=FS_SMALL, fontweight="bold", va="top", ha="right", color="#059669")
-    y -= len(rows) * row_h + 0.03
+    for label, val in rows:
+        draw.text((x, R.y), label, font=f_small, fill=INK)
+        draw.text((x + inner_w - 140, R.y), val, font=f_small, fill=PASS)
+        R.y += 28
+    R.y += 16
 
-    # Compact figures side-by-side (~8% height each — poster supports text first)
-    fig_h = 0.085
-    fig_w = 0.40
-    gap = 0.05
-    y_top = y - 0.02
+    half = (fig_w - 16) // 2
+    y_figs = R.y
+    for i, (path, num, cap) in enumerate(
+        [
+            (GRAPHS / "isef_parity_restyled.png", 2, "Ac-225 parity; 4.51% median vs ODE."),
+            (GRAPHS / "isef_isotope_evolution.png", 3, "Ac-225 vs time; PINN tracks ODE."),
+        ]
+    ):
+        fx = x + i * (half + 16)
+        img = Image.open(path).convert("RGBA") if path.is_file() else None
+        if img:
+            img.thumbnail((half, fig_h_med), Image.Resampling.LANCZOS)
+            ox = fx + (half - img.width) // 2
+            canvas.paste(img, (ox, y_figs), img)
+            draw.rectangle([fx, y_figs, fx + half, y_figs + img.height], outline=(120, 120, 120), width=1)
+            cy = y_figs + img.height + 8
+        else:
+            cy = y_figs + 40
+        for line in _wrap(f"Fig {num}: {cap}", 28):
+            draw.text((fx, cy), line, font=_font(16), fill=MUTED)
+            cy += 20
+        R.y = max(R.y, cy + 12)
 
-    fig_items = [
-        (GRAPHS / "isef_parity_restyled.png", 2, "Ac-225 parity; 4.51% median vs ODE (22 held-out)."),
-        (GRAPHS / "isef_isotope_evolution.png", 3, "Ac-225 vs time; PINN tracks ODE."),
-    ]
-    for idx, (path, num, cap) in enumerate(fig_items):
-        x0 = PAD + idx * (fig_w + gap)
-        yt = y_top
-        img = _load_img(path)
-        if img is not None:
-            inset = ax_r.inset_axes([x0, yt - fig_h, fig_w, fig_h])
-            inset.imshow(img)
-            inset.set_xticks([])
-            inset.set_yticks([])
-            for spine in inset.spines.values():
-                spine.set_edgecolor("#666")
-        ax_r.text(
-            x0,
-            yt - fig_h - 0.006,
-            f"Fig {num}: {_wrap(cap, width=38)}",
-            fontsize=FS_CAPTION - 1,
-            va="top",
-            ha="left",
-            linespacing=1.1,
-        )
-
-    y = y_top - fig_h - 0.10
-
-    y = _section_header(ax_r, y, "Results & Conclusions")
-    y = _body(
-        ax_r,
-        y,
-        "The PINN passed 6/6 validation gates with 4.51% held-out Ac-225 median error vs ODE, enabling "
-        "rapid scenario screening impractical with repeated stiff solves.",
-        width=50,
-        size=FS_SMALL,
-    )
-    _body(
-        ax_r,
-        y,
-        "Limitations: Validated vs ODE only — not reactor or clinical data. 0D lumped model; not patient "
-        "dosing or 3D transport (MCNP/OpenMC).",
-        width=50,
-        size=FS_SMALL,
+    R.y = _section(draw, x, R.y + 8, "Results & Conclusions", COL_W)
+    R.y = _draw_paragraph(
+        draw, x, R.y,
+        "PINN passed 6/6 gates with 4.51% held-out error vs ODE — enabling rapid screening not practical with repeated stiff solves.",
+        f_small, width=48,
+    ) + 6
+    _draw_paragraph(
+        draw, x, R.y,
+        "Limitation: ODE-only validation; 0D model; not clinical dosing or 3D transport.",
+        f_small, width=48,
     )
 
-    # ===================== FOOTER =====================
-    ax_f.text(
-        0.02,
-        0.92,
-        "KEY REFERENCES",
-        fontsize=FS_SECTION - 4,
-        fontweight="bold",
-        va="top",
-    )
+    # ==================== FOOTER ====================
+    fy = body_h
+    draw.rectangle([0, fy, W, H], fill=(238, 242, 247))
+    draw.line([(0, fy), (W, fy)], fill=RULE, width=2)
+    draw.text((MARGIN, fy + 16), "KEY REFERENCES", font=_font(22, bold=True), fill=INK)
     refs = (
-        "Raissi, M., Perdikaris, P., & Karniadakis, G. E. (2019). Physics-informed neural networks. "
-        "Journal of Computational Physics, 378, 686–707.\n"
-        "NNDC/NuDat decay data; JENDL-4.0 Ra-226 cross sections; DOE Isotope Program (Ac-225 supply)."
+        "Raissi et al. (2019) Physics-informed neural networks. J. Comput. Phys. 378, 686–707.  ·  "
+        "NNDC/NuDat; JENDL-4.0; DOE Isotope Program."
     )
-    ax_f.text(0.02, 0.72, refs, fontsize=FS_FOOTER, va="top", linespacing=1.25, color="#333")
+    _draw_paragraph(draw, MARGIN, fy + 52, refs, _font(17), width=120)
+    draw.text(
+        (MARGIN, fy + 120),
+        "Acknowledgements: Adult sponsor & science fair mentor. Faculty reviewers (pending).",
+        font=_font(17), fill=MUTED,
+    )
+    draw.text((W - 520, fy + 24), "LIVE DEMO", font=_font(22, bold=True), fill=ACCENT)
+    draw.text(
+        (W - 520, fy + 58),
+        "lhyjrhmwzxqfpuuwsux7zh.streamlit.app",
+        font=_font(17), fill=ACCENT,
+    )
+    draw.text((W - 520, fy + 88), "github.com/samogunnubi0-del/PINN", font=_font(17), fill=ACCENT)
 
-    ax_f.text(
-        0.02,
-        0.28,
-        "ACKNOWLEDGEMENTS: Adult sponsor and science fair mentor. Faculty reviewers (pending). "
-        "Computational training via Colab/Kaggle.",
-        fontsize=FS_FOOTER,
-        va="top",
-        color="#333",
-    )
-    ax_f.text(
-        0.72,
-        0.85,
-        "LIVE DEMO",
-        fontsize=FS_SECTION - 6,
-        fontweight="bold",
-        ha="left",
-        va="top",
-    )
-    ax_f.text(
-        0.72,
-        0.62,
-        "lhyjrhmwzxqfpuuwsux7zh.streamlit.app\n\ngithub.com/samogunnubi0-del/PINN",
-        fontsize=FS_FOOTER,
-        ha="left",
-        va="top",
-        color="#1d4ed8",
-    )
-
-    fig.savefig(OUT, dpi=DPI, facecolor=fig.get_facecolor(), edgecolor="none")
-    plt.close(fig)
-    kb = OUT.stat().st_size // 1024
-    print(f"Saved {OUT.relative_to(ROOT)} ({kb} KB) — 48×36 in tri-fold @ {DPI} dpi")
+    canvas.save(OUT, "PNG", optimize=True)
+    print(f"Saved {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB, {W}×{H}px)")
 
 
 if __name__ == "__main__":
