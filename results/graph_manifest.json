@@ -48,52 +48,52 @@
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_isotope_evolution.png",
       "energy_ev": 14000000.0,
       "host": "local",
-      "mtime_ns": 1780167247613354500,
+      "mtime_ns": 1780167933854836200,
       "phi": 100000000000000.0,
       "producer": "isef_figures.py",
       "relative_path": "graphs/isef_isotope_evolution.png",
-      "run_id": "f7c00d56-4650-427d-9aa7-f3eb8aae30b7",
+      "run_id": "c9391a43-fc5e-492d-bd58-4af040622125",
       "sha256": "73fbab928dab49c99d1fb037ef499954ed7be9ab1ef560a61e82cd6efa66122a",
       "size_bytes": 174125,
-      "written_at_utc": "2026-05-30T18:54:07.635702+00:00"
+      "written_at_utc": "2026-05-30T19:05:33.878469+00:00"
     },
     "graphs/isef_loss_trajectory_12k.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_loss_trajectory_12k.png",
       "host": "local",
-      "mtime_ns": 1780167249119355900,
+      "mtime_ns": 1780167935299235000,
       "producer": "isef_figures.py",
       "relative_path": "graphs/isef_loss_trajectory_12k.png",
       "rows": 12000,
-      "run_id": "f7c00d56-4650-427d-9aa7-f3eb8aae30b7",
+      "run_id": "c9391a43-fc5e-492d-bd58-4af040622125",
       "sha256": "aff885d0668f6d0347cabc041d0b1e0547ef492441f611b6be19ebec88bcea71",
       "size_bytes": 383087,
-      "written_at_utc": "2026-05-30T18:54:09.150465+00:00"
+      "written_at_utc": "2026-05-30T19:05:35.319450+00:00"
     },
     "graphs/isef_mass_conservation.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_mass_conservation.png",
       "host": "local",
-      "mtime_ns": 1780167250252352300,
+      "mtime_ns": 1780167936373724500,
       "producer": "isef_figures.py",
       "relative_path": "graphs/isef_mass_conservation.png",
-      "run_id": "f7c00d56-4650-427d-9aa7-f3eb8aae30b7",
+      "run_id": "c9391a43-fc5e-492d-bd58-4af040622125",
       "sha256": "6eae9b407ffb99dc6fd784659bbce276f489a37c67a9c1f1866fb3ca939351e7",
       "size_bytes": 133540,
-      "written_at_utc": "2026-05-30T18:54:10.275283+00:00"
+      "written_at_utc": "2026-05-30T19:05:36.397081+00:00"
     },
     "graphs/isef_parity_restyled.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_parity_restyled.png",
       "dataset": "heldout_22",
       "host": "local",
       "median_rel": 0.045116851430587,
-      "mtime_ns": 1780167250869153400,
+      "mtime_ns": 1780167936879317500,
       "n_heldout_official": 22,
       "n_points": 20,
       "producer": "isef_figures.py",
       "relative_path": "graphs/isef_parity_restyled.png",
-      "run_id": "f7c00d56-4650-427d-9aa7-f3eb8aae30b7",
-      "sha256": "5e9797bc073b983f7383565c2ab684c916ca12fe7b5e756af381f463b3a8e1a9",
-      "size_bytes": 173035,
-      "written_at_utc": "2026-05-30T18:54:10.888877+00:00"
+      "run_id": "c9391a43-fc5e-492d-bd58-4af040622125",
+      "sha256": "db13d2f5de62da2e305872cba6d2ee55bde6b0e418aeb0cd1e9afae9645c8503",
+      "size_bytes": 172298,
+      "written_at_utc": "2026-05-30T19:05:36.898302+00:00"
     },
     "graphs/loss_components.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\loss_components.png",
@@ -170,6 +170,6 @@
       "written_at_utc": "2026-05-30T15:25:48.795491+00:00"
     }
   },
-  "updated_at_utc": "2026-05-30T18:54:10.888877+00:00",
+  "updated_at_utc": "2026-05-30T19:05:36.898302+00:00",
   "version": 1
 }

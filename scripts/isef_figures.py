@@ -404,7 +404,7 @@ def plot_parity_restyled(model) -> None:
             med = float(np.median(rel))
             n_official = n_all
         title = rf"$^{{225}}$Ac parity — held-out ({n_official} scenarios)"
-        subtitle = f"PINN vs ODE reference · v63 weights · {len(t_pos)} points with $N_{{Ac}}$ > 0 shown"
+        caption = f"PINN vs ODE · v63 · {len(t_pos)} of {n_official} scenarios plotted ($N_{{Ac}}>0$)"
     else:
         dataset = "training_sample"
         tdf = _load_training_csv_for_parity()
@@ -439,13 +439,14 @@ def plot_parity_restyled(model) -> None:
         rel = np.abs(p_pos - t_pos) / t_pos
         med = float(np.median(rel))
         title = r"$^{225}$Ac parity (training sample)"
-        subtitle = "Fallback — regenerate held-out CSV for canonical metric"
-        n_official = n_pts
+        caption = "Training sample fallback"
+        n_official = int(len(t_pos))
 
     n_pts = int(len(t_pos))
     point_size = 48 if n_pts <= 30 else 12
 
-    fig, ax = plt.subplots(figsize=(7, 7))
+    fig, ax = plt.subplots(figsize=(7.5, 7.2))
+    fig.subplots_adjust(top=0.84, right=0.86, bottom=0.14, left=0.12)
     with plt.rc_context(DARK_RC):
         sc = ax.scatter(
             t_pos,
@@ -464,19 +465,24 @@ def plot_parity_restyled(model) -> None:
         ax.set_yscale("log")
         ax.set_xlabel(r"True $N_{^{225}\mathrm{Ac}}$ (atoms)")
         ax.set_ylabel(r"Predicted $N_{^{225}\mathrm{Ac}}$ (atoms)")
-        ax.set_title(title)
-        ax.text(
-            0.05,
-            0.95,
-            f"Median rel. error: {med:.2%}\n{subtitle}",
-            transform=ax.transAxes,
-            va="top",
-            color="#e2e8f0",
-            fontsize=10,
+        ax.set_title(
+            f"{title}\nMedian rel. error: {med:.2%}",
+            fontsize=12,
+            linespacing=1.35,
+            pad=10,
         )
-        cbar = plt.colorbar(sc, ax=ax, label=r"$\log_{10}$ rel. error")
+        fig.text(
+            0.5,
+            0.04,
+            caption,
+            ha="center",
+            va="bottom",
+            fontsize=8.5,
+            color="#94a3b8",
+        )
+        cbar = fig.colorbar(sc, ax=ax, label=r"$\log_{10}$ rel. error", fraction=0.046, pad=0.04)
         style_colorbar_dark(cbar)
-        ax.legend(loc="lower right")
+        ax.legend(loc="lower right", framealpha=0.85)
         ax.grid(True, which="both", alpha=0.35)
         _style_figure(ax)
     _save(
