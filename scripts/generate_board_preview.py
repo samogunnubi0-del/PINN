@@ -1,331 +1,258 @@
 """
-Tri-fold board PREVIEW — optimized for on-screen reading (not tiny 48×36 print scale).
+Build a self-contained tri-fold poster HTML with images embedded as base64.
 
-Uses Pillow for crisp text and properly resized figures.
+This fixes the "pictures don't show" problem: the PNGs are baked into the HTML,
+so it renders identically no matter where the file is opened (no path issues).
 
 Run:  python scripts/generate_board_preview.py
-Out:   poster/board_preview.png  (3600 × 2700 px, 4:3)
+Out:   poster/board_preview.html   (open in any browser; Print -> Save as PDF)
 """
 from __future__ import annotations
 
-import textwrap
+import base64
 from pathlib import Path
-
-from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 GRAPHS = ROOT / "graphs"
-OUT = ROOT / "poster" / "board_preview.png"
-
-# Canvas: 4:3 like a 48×36 board; big enough to read when opened full-screen
-W, H = 3600, 2700
-FOOTER_H = 220
-COL_W = W // 3
-MARGIN = 48
-
-# Colors
-BG = (209, 213, 219)
-WHITE = (255, 255, 255)
-PANEL_L = (248, 250, 252)
-PANEL_R = (248, 250, 252)
-INK = (15, 23, 42)
-MUTED = (71, 85, 105)
-ACCENT = (29, 78, 216)
-PASS = (5, 150, 105)
-RULE = (30, 41, 59)
+OUT = ROOT / "poster" / "board_preview.html"
 
 
-def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    names = ("arialbd.ttf", "Arial Bold.ttf") if bold else ("arial.ttf", "Arial.ttf")
-    for name in names:
-        path = Path("C:/Windows/Fonts") / name
-        if path.is_file():
-            return ImageFont.truetype(str(path), size)
-    return ImageFont.load_default()
-
-
-def _wrap(text: str, width: int) -> list[str]:
-    return textwrap.wrap(text, width=width) or [""]
-
-
-def _line_h(draw: ImageDraw.ImageDraw, font, lines: list[str], spacing: int = 6) -> int:
-    if not lines:
-        return 0
-    bbox = draw.textbbox((0, 0), "Ay", font=font)
-    lh = bbox[3] - bbox[1]
-    return len(lines) * (lh + spacing) - spacing
-
-
-def _draw_paragraph(
-    draw: ImageDraw.ImageDraw,
-    x: int,
-    y: int,
-    text: str,
-    font,
-    fill=INK,
-    width: int = 42,
-    spacing: int = 6,
-) -> int:
-    lines = _wrap(text, width)
-    for line in lines:
-        draw.text((x, y), line, font=font, fill=fill)
-        bbox = draw.textbbox((x, y), line, font=font)
-        y = bbox[3] + spacing
-    return y
-
-
-def _section(draw: ImageDraw.ImageDraw, x: int, y: int, title: str, col_w: int) -> int:
-    f = _font(28, bold=True)
-    draw.text((x, y), title.upper(), font=f, fill=INK)
-    y += 38
-    draw.line([(x, y), (x + col_w - 2 * MARGIN, y)], fill=RULE, width=2)
-    return y + 20
-
-
-def _paste_figure(
-    canvas: Image.Image,
-    draw: ImageDraw.ImageDraw,
-    x: int,
-    y: int,
-    path: Path,
-    fig_num: int,
-    caption: str,
-    max_w: int,
-    max_h: int,
-) -> int:
+def _b64(path: Path) -> str:
     if not path.is_file():
-        draw.text((x, y), f"[Missing {path.name}]", font=_font(18), fill=(180, 0, 0))
-        return y + 40
-
-    img = Image.open(path).convert("RGBA")
-    img.thumbnail((max_w, max_h), Image.Resampling.LANCZOS)
-    # Center in box
-    ox = x + (max_w - img.width) // 2
-    canvas.paste(img, (ox, y), img if img.mode == "RGBA" else None)
-    draw.rectangle([x, y, x + max_w, y + img.height], outline=(120, 120, 120), width=1)
-
-    cy = y + img.height + 10
-    cap_font = _font(17)
-    cap = f"Figure {fig_num}: {caption}"
-    for line in _wrap(cap, width=52):
-        draw.text((x, cy), line, font=cap_font, fill=MUTED)
-        cy += 22
-    return cy + 12
-
-
-class Column:
-    def __init__(self, x0: int, width: int, bg: tuple):
-        self.x0 = x0
-        self.width = width
-        self.bg = bg
-        self.y = MARGIN + 8
-
-    def inner_x(self) -> int:
-        return self.x0 + MARGIN
+        return ""
+    data = base64.b64encode(path.read_bytes()).decode("ascii")
+    return f"data:image/png;base64,{data}"
 
 
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
 
-    canvas = Image.new("RGB", (W, H), BG)
-    draw = ImageDraw.Draw(canvas)
+    fig_mass = _b64(GRAPHS / "isef_mass_conservation.png")
+    fig_parity = _b64(GRAPHS / "isef_parity_restyled.png")
+    fig_eval = _b64(GRAPHS / "isef_isotope_evolution.png")
 
-    body_h = H - FOOTER_H
-    for i, bg in enumerate((PANEL_L, WHITE, PANEL_R)):
-        draw.rectangle([i * COL_W, 0, (i + 1) * COL_W - 1, body_h], fill=bg)
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>IsotopePINN — Tri-Fold Board</title>
+<style>
+  :root {{
+    --ink:#0f172a; --muted:#475569; --accent:#1d4ed8; --accent-soft:#dbeafe;
+    --pass:#059669; --pass-soft:#ecfdf5; --border:#cbd5e1; --panel:#f8fafc;
+  }}
+  * {{ box-sizing:border-box; margin:0; padding:0; }}
+  body {{ font-family:"Segoe UI",Arial,sans-serif; background:#b8bfc9; color:var(--ink); padding:24px; }}
 
-    # Fold lines
-    for fx in (COL_W, 2 * COL_W):
-        draw.line([(fx, 20), (fx, body_h - 20)], fill=(148, 163, 184), width=2)
+  .toolbar {{
+    max-width:1400px; margin:0 auto 16px; background:#1e293b; color:#fff;
+    padding:12px 18px; border-radius:8px; display:flex; gap:16px; align-items:center; flex-wrap:wrap;
+  }}
+  .toolbar button {{ background:var(--accent); color:#fff; border:0; padding:9px 16px; border-radius:6px; cursor:pointer; font-size:14px; }}
+  .toolbar span {{ font-size:13px; opacity:.9; }}
 
-    f_title = _font(44, bold=True)
-    f_sub = _font(24)
-    f_body = _font(22)
-    f_small = _font(19)
-    f_bold = _font(22, bold=True)
+  .board {{
+    max-width:1400px; margin:0 auto; background:#fff;
+    display:grid; grid-template-columns:1fr 1fr 1fr;
+    box-shadow:0 20px 50px rgba(0,0,0,.3); border-radius:6px; overflow:hidden;
+  }}
+  .panel {{ padding:26px 24px; border-right:2px dashed var(--border); }}
+  .panel:last-child {{ border-right:none; }}
+  .panel-left {{ background:var(--panel); }}
+  .panel-right {{ background:var(--panel); }}
 
-    inner_w = COL_W - 2 * MARGIN
-    fig_w = inner_w
-    fig_h_small = 260
-    fig_h_med = 300
+  .title-block {{ text-align:center; margin-bottom:18px; }}
+  .title-block h1 {{ font-size:24px; line-height:1.2; color:var(--ink); }}
+  .title-block .name {{ font-size:18px; font-weight:700; margin-top:10px; }}
+  .title-block .school {{ font-size:13px; color:var(--muted); margin-top:2px; }}
 
-    # ==================== LEFT ====================
-    L = Column(0, COL_W, PANEL_L)
-    x = L.inner_x()
+  h2 {{
+    font-size:16px; font-weight:800; text-transform:uppercase; letter-spacing:.05em;
+    color:var(--accent); border-bottom:2px solid var(--accent-soft);
+    padding-bottom:5px; margin:18px 0 10px;
+  }}
+  .panel-center h2:first-of-type {{ margin-top:8px; }}
+  p, li {{ font-size:14px; line-height:1.5; margin-bottom:9px; }}
+  ul, ol {{ padding-left:20px; }}
+  li {{ margin-bottom:6px; }}
 
-    L.y = _section(draw, x, L.y, "Background", COL_W)
-    L.y = _draw_paragraph(
-        draw, x, L.y,
-        "Actinium-225 is a scarce alpha-emitting radiopharmaceutical used in targeted alpha therapy (TAT) for cancer. Supply limits trials and treatment access.",
-        f_body, width=46,
-    ) + 8
-    L.y = _draw_paragraph(
-        draw, x, L.y,
-        "Planning irradiation (flux, energy, time) requires a stiff five-isotope chain solved many times. ODE integrators are accurate but too slow for large sweeps.",
-        f_body, width=46,
-    ) + 16
+  .box {{ border-radius:8px; padding:12px 14px; margin:10px 0; font-size:14px; line-height:1.45; }}
+  .box-rq {{ background:var(--accent-soft); border:2px solid var(--accent); font-weight:600; }}
+  .box-chain {{ background:var(--pass-soft); border:2px solid var(--pass); font-size:13px; }}
+  .box-chain b {{ font-size:14px; }}
 
-    # Chain box
-    box_h = 100
-    draw.rounded_rectangle([x, L.y, x + inner_w, L.y + box_h], radius=8, outline=PASS, width=2, fill=(240, 253, 244))
-    draw.text((x + 14, L.y + 10), "Five-species chain (0D)", font=f_bold, fill=INK)
-    draw.text((x + 14, L.y + 38), "Ra-226 → Ra-225 → Ac-225  (product)", font=f_small, fill=INK)
-    draw.text((x + 14, L.y + 64), "Ra-226 → Ra-227 → Ac-227  (impurity)", font=f_small, fill=INK)
-    L.y += box_h + 24
+  .steps {{ list-style:none; padding:0; counter-reset:s; }}
+  .steps li {{ counter-increment:s; position:relative; padding-left:34px; margin-bottom:11px; font-size:13.5px; }}
+  .steps li::before {{
+    content:counter(s); position:absolute; left:0; top:1px;
+    width:22px; height:22px; background:var(--accent); color:#fff;
+    border-radius:50%; font-size:12px; font-weight:700; text-align:center; line-height:22px;
+  }}
 
-    L.y = _section(draw, x, L.y, "Research Question", COL_W)
-    rq_h = 130
-    draw.rounded_rectangle([x, L.y, x + inner_w, L.y + rq_h], radius=8, outline=ACCENT, width=2, fill=(239, 246, 255))
-    rq_lines = _wrap(
-        "Can a physics-informed neural network accurately and rapidly predict Ac-225 inventory across diverse irradiation scenarios compared to a trusted Bateman ODE reference?",
-        44,
-    )
-    ty = L.y + 14
-    for line in rq_lines:
-        draw.text((x + 14, ty), line, font=f_bold, fill=INK)
-        ty += 28
-    L.y += rq_h + 24
+  table {{ width:100%; border-collapse:collapse; font-size:13px; margin:8px 0; }}
+  th, td {{ border:1px solid var(--border); padding:6px 8px; text-align:left; }}
+  th {{ background:var(--accent-soft); }}
+  .pass {{ color:var(--pass); font-weight:700; }}
 
-    L.y = _section(draw, x, L.y, "Hypothesis", COL_W)
-    L.y = _draw_paragraph(
-        draw, x, L.y,
-        "If Bateman physics is embedded in the network and loss, the PINN will match the ODE within 10% on held-out scenarios and run much faster than repeated ODE solves.",
-        f_body, width=46,
-    ) + 12
+  figure {{ margin:12px 0; }}
+  figure img {{ width:100%; height:auto; border:1px solid #888; border-radius:4px; display:block; }}
+  figcaption {{ font-size:12px; color:var(--muted); margin-top:6px; line-height:1.35; }}
+  figcaption b {{ color:var(--ink); }}
+  .fig-row {{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }}
 
-    L.y = _section(draw, x, L.y, "Expected Outcomes", COL_W)
-    for bullet in (
-        "Six validation gates PASS",
-        "Held-out Ac-225 median < 10%",
-        "Best: thermal & 14 MeV (~4–5%)",
-        "Hardest: epithermal & threshold",
-    ):
-        draw.text((x + 8, L.y), f"•  {bullet}", font=f_small, fill=INK)
-        L.y += 30
+  .badge {{ display:inline-block; background:var(--pass); color:#fff; font-size:12px; font-weight:700; padding:3px 9px; border-radius:4px; margin:0 4px 6px 0; }}
 
-    # ==================== CENTER ====================
-    C = Column(COL_W, COL_W, WHITE)
-    cx = C.x0 + COL_W // 2
-    title_lines = _wrap(
-        "Computational Surrogate for Ac-225 Production Planning in Targeted Alpha Therapy",
-        32,
-    )
-    ty = MARGIN + 10
-    for line in title_lines:
-        bbox = draw.textbbox((0, 0), line, font=f_title)
-        tw = bbox[2] - bbox[0]
-        draw.text((cx - tw // 2, ty), line, font=f_title, fill=INK)
-        ty += 52
-    ty += 8
-    for line, font in (("Samuel Ogunnubi", _font(28, bold=True)), ("Anne Arundel Community College · May 2026", f_sub)):
-        bbox = draw.textbbox((0, 0), line, font=font)
-        tw = bbox[2] - bbox[0]
-        draw.text((cx - tw // 2, ty), line, font=font, fill=MUTED if font == f_sub else INK)
-        ty += 36
-    C.y = ty + 20
+  .footer {{
+    max-width:1400px; margin:0 auto; background:#eef2f7; border-radius:0 0 6px 6px;
+    display:grid; grid-template-columns:2fr 1fr; gap:20px; padding:18px 24px;
+    box-shadow:0 10px 30px rgba(0,0,0,.2);
+  }}
+  .footer h3 {{ font-size:14px; text-transform:uppercase; letter-spacing:.05em; border-bottom:1px solid #333; margin-bottom:6px; }}
+  .footer p {{ font-size:12px; line-height:1.4; }}
+  .demo a {{ color:var(--accent); word-break:break-all; font-size:12px; }}
 
-    x = C.inner_x()
-    C.y = _section(draw, x, C.y, "Methodology", COL_W)
-    steps = [
-        "Build 0D Bateman ODE reference (NNDC/JENDL data, Radau solver).",
-        "Generate training scenarios: thermal, epithermal, threshold, 14 MeV.",
-        "Train PINN: Bateman backbone + physics loss (600 pretrain + 3400 joint).",
-        "Enforce mass budget — no production from empty target.",
-        "Validate: six independent gates + 22 held-out scenarios.",
-        "Streamlit demo: live PINN vs ODE + parameter screening.",
-    ]
-    for i, step in enumerate(steps, 1):
-        draw.text((x, C.y), f"{i}.", font=f_bold, fill=ACCENT)
-        C.y = _draw_paragraph(draw, x + 28, C.y, step, f_small, width=42) + 6
+  @media print {{
+    body {{ background:#fff; padding:0; }}
+    .toolbar {{ display:none; }}
+    .board, .footer {{ box-shadow:none; max-width:100%; }}
+    @page {{ size:48in 36in landscape; margin:.3in; }}
+  }}
+  @media (max-width:900px) {{
+    .board {{ grid-template-columns:1fr; }}
+    .panel {{ border-right:none; border-bottom:2px dashed var(--border); }}
+    .footer {{ grid-template-columns:1fr; }}
+  }}
+</style>
+</head>
+<body>
 
-    C.y = _paste_figure(
-        canvas, draw, x, C.y + 8,
-        GRAPHS / "isef_mass_conservation.png",
-        1, "Atom budget drift (ppm); PINN within ±10 ppm band.",
-        fig_w, fig_h_small,
-    )
+<div class="toolbar">
+  <strong>IsotopePINN tri-fold board</strong>
+  <span>Pictures are embedded — they always show. Print → Save as PDF (48×36 landscape) for the real board.</span>
+  <button type="button" onclick="window.print()">Print / Save PDF</button>
+</div>
 
-    # ==================== RIGHT ====================
-    R = Column(2 * COL_W, COL_W, PANEL_R)
-    x = R.inner_x()
-    R.y = _section(draw, x, R.y, "Results", COL_W)
-    draw.text((x, R.y), "6/6 PASS  ·  4.51% held-out Ac-225  ·  v63 weights", font=f_bold, fill=PASS)
-    R.y += 36
+<div class="board">
 
-    rows = [
-        ("Empty-target safety", "PASS"),
-        ("Production (14 MeV)", "PASS (9.9%)"),
-        ("Decay-chain ingrowth", "PASS"),
-        ("Quality gate", "PASS"),
-        ("Correlation", "PASS"),
-        ("Held-out (22 scenarios)", "4.51%"),
-    ]
-    for label, val in rows:
-        draw.text((x, R.y), label, font=f_small, fill=INK)
-        draw.text((x + inner_w - 140, R.y), val, font=f_small, fill=PASS)
-        R.y += 28
-    R.y += 16
+  <!-- LEFT -->
+  <div class="panel panel-left">
+    <h2>Background</h2>
+    <p>Actinium-225 is a scarce alpha-emitting radiopharmaceutical used in
+       <b>targeted alpha therapy (TAT)</b> for cancer. Supply limits clinical trials and patient access.</p>
+    <p>Planning irradiation — neutron flux, energy, and time — requires solving a stiff
+       <b>five-isotope transmutation chain</b> many times. ODE integrators are accurate but too slow
+       for large parameter sweeps.</p>
+    <div class="box box-chain">
+      <b>Five-species chain (0D)</b><br>
+      Ra-226 → Ra-225 → Ac-225 &nbsp;(product)<br>
+      Ra-226 → Ra-227 → Ac-227 &nbsp;(impurity)
+    </div>
 
-    half = (fig_w - 16) // 2
-    y_figs = R.y
-    for i, (path, num, cap) in enumerate(
-        [
-            (GRAPHS / "isef_parity_restyled.png", 2, "Ac-225 parity; 4.51% median vs ODE."),
-            (GRAPHS / "isef_isotope_evolution.png", 3, "Ac-225 vs time; PINN tracks ODE."),
-        ]
-    ):
-        fx = x + i * (half + 16)
-        img = Image.open(path).convert("RGBA") if path.is_file() else None
-        if img:
-            img.thumbnail((half, fig_h_med), Image.Resampling.LANCZOS)
-            ox = fx + (half - img.width) // 2
-            canvas.paste(img, (ox, y_figs), img)
-            draw.rectangle([fx, y_figs, fx + half, y_figs + img.height], outline=(120, 120, 120), width=1)
-            cy = y_figs + img.height + 8
-        else:
-            cy = y_figs + 40
-        for line in _wrap(f"Fig {num}: {cap}", 28):
-            draw.text((fx, cy), line, font=_font(16), fill=MUTED)
-            cy += 20
-        R.y = max(R.y, cy + 12)
+    <h2>Research Question</h2>
+    <div class="box box-rq">
+      Can a physics-informed neural network accurately and rapidly predict Ac-225 inventory across
+      diverse irradiation scenarios compared to a trusted Bateman ODE reference?
+    </div>
 
-    R.y = _section(draw, x, R.y + 8, "Results & Conclusions", COL_W)
-    R.y = _draw_paragraph(
-        draw, x, R.y,
-        "PINN passed 6/6 gates with 4.51% held-out error vs ODE — enabling rapid screening not practical with repeated stiff solves.",
-        f_small, width=48,
-    ) + 6
-    _draw_paragraph(
-        draw, x, R.y,
-        "Limitation: ODE-only validation; 0D model; not clinical dosing or 3D transport.",
-        f_small, width=48,
-    )
+    <h2>Hypothesis</h2>
+    <p>If Bateman physics is embedded in the architecture and training loss, the PINN will match the
+       ODE within <b>10%</b> on held-out scenarios while running orders-of-magnitude faster than
+       sequential ODE integration.</p>
 
-    # ==================== FOOTER ====================
-    fy = body_h
-    draw.rectangle([0, fy, W, H], fill=(238, 242, 247))
-    draw.line([(0, fy), (W, fy)], fill=RULE, width=2)
-    draw.text((MARGIN, fy + 16), "KEY REFERENCES", font=_font(22, bold=True), fill=INK)
-    refs = (
-        "Raissi et al. (2019) Physics-informed neural networks. J. Comput. Phys. 378, 686–707.  ·  "
-        "NNDC/NuDat; JENDL-4.0; DOE Isotope Program."
-    )
-    _draw_paragraph(draw, MARGIN, fy + 52, refs, _font(17), width=120)
-    draw.text(
-        (MARGIN, fy + 120),
-        "Acknowledgements: Adult sponsor & science fair mentor. Faculty reviewers (pending).",
-        font=_font(17), fill=MUTED,
-    )
-    draw.text((W - 520, fy + 24), "LIVE DEMO", font=_font(22, bold=True), fill=ACCENT)
-    draw.text(
-        (W - 520, fy + 58),
-        "lhyjrhmwzxqfpuuwsux7zh.streamlit.app",
-        font=_font(17), fill=ACCENT,
-    )
-    draw.text((W - 520, fy + 88), "github.com/samogunnubi0-del/PINN", font=_font(17), fill=ACCENT)
+    <h2>Expected Outcomes</h2>
+    <ul>
+      <li>Six independent validation gates PASS</li>
+      <li>Held-out Ac-225 median error &lt; 10% vs ODE</li>
+      <li>Strongest accuracy: thermal &amp; 14 MeV regimes</li>
+      <li>Largest errors: epithermal (~9.5%) &amp; threshold (~8.5%)</li>
+    </ul>
+  </div>
 
-    canvas.save(OUT, "PNG", optimize=True)
-    print(f"Saved {OUT.relative_to(ROOT)} ({OUT.stat().st_size // 1024} KB, {W}×{H}px)")
+  <!-- CENTER -->
+  <div class="panel panel-center">
+    <div class="title-block">
+      <h1>Computational Surrogate for Ac-225 Production Planning in Targeted Alpha Therapy</h1>
+      <div class="name">Samuel Ogunnubi</div>
+      <div class="school">Anne Arundel Community College · Dual Enrollment · May 2026</div>
+    </div>
+
+    <h2>Methodology</h2>
+    <ol class="steps">
+      <li><b>Reference:</b> 0D five-species Bateman ODE (NNDC/ENSDF half-lives, JENDL cross sections), stiff Radau solver generates training targets.</li>
+      <li><b>Coverage:</b> Scenarios across thermal, epithermal, threshold (~6.4 MeV), and 14 MeV energies; virgin and recycled inventories.</li>
+      <li><b>Surrogate:</b> Physics-informed NN with semi-analytic Bateman backbone and bounded corrections.</li>
+      <li><b>Training:</b> 600-epoch physics pretrain + 3,400-epoch joint (v63 weights); mass conservation in loss.</li>
+      <li><b>Validation:</b> Six independent gates + 22 held-out scenarios (seed 42).</li>
+      <li><b>Demo:</b> Streamlit app for live PINN vs ODE and parameter screening.</li>
+    </ol>
+
+    <figure>
+      <img src="{fig_mass}" alt="Mass conservation" />
+      <figcaption><b>Figure 1 — Mass conservation.</b> Five-species atom budget drift (ppm) vs time;
+        PINN stays within ±10 ppm training band (virgin Ra-226, φ = 1×10¹⁴, 14 MeV).</figcaption>
+    </figure>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="panel panel-right">
+    <h2>Results</h2>
+    <p><span class="badge">6/6 PASS</span><span class="badge">4.51% held-out</span> Weights v63 · sha256 <code>7c21debe</code></p>
+    <table>
+      <tr><th>Validation check</th><th>Result</th></tr>
+      <tr><td>Empty-target safety</td><td class="pass">PASS</td></tr>
+      <tr><td>Production (14 MeV)</td><td class="pass">PASS (9.9%)</td></tr>
+      <tr><td>Decay-chain ingrowth</td><td class="pass">PASS</td></tr>
+      <tr><td>Species quality gate</td><td class="pass">PASS</td></tr>
+      <tr><td>PINN vs ODE correlation</td><td class="pass">PASS</td></tr>
+      <tr><td>Held-out Ac-225 (22)</td><td class="pass">4.51% median</td></tr>
+    </table>
+
+    <div class="fig-row">
+      <figure>
+        <img src="{fig_parity}" alt="Parity" />
+        <figcaption><b>Fig 2 — Parity.</b> PINN vs ODE, 22 held-out; 4.51% median.</figcaption>
+      </figure>
+      <figure>
+        <img src="{fig_eval}" alt="Evolution" />
+        <figcaption><b>Fig 3 — Evolution.</b> Ac-225 vs time; PINN tracks ODE.</figcaption>
+      </figure>
+    </div>
+
+    <h2>Results &amp; Conclusions</h2>
+    <p>The PINN passed <b>6/6 gates</b> with <b>4.51%</b> held-out Ac-225 error vs ODE — enabling rapid
+       screening impractical with repeated stiff solves. Strongest: thermal / 14 MeV; weakest:
+       epithermal and ~6.4 MeV threshold.</p>
+    <p><b>Limitations:</b> Validated vs ODE only — not reactor or clinical data. 0D model; not patient
+       dosing or 3D transport (MCNP/OpenMC).</p>
+  </div>
+</div>
+
+<div class="footer">
+  <div>
+    <h3>Key References</h3>
+    <p>Raissi, M., Perdikaris, P., &amp; Karniadakis, G. E. (2019). Physics-informed neural networks.
+       <i>Journal of Computational Physics</i>, 378, 686–707.</p>
+    <p>NNDC/NuDat decay data; JENDL-4.0 Ra-226 cross sections; DOE Isotope Program (Ac-225 supply).</p>
+    <h3 style="margin-top:10px;">Acknowledgements</h3>
+    <p>Adult sponsor and science fair mentor. Faculty reviewers (pending). GPU training via Colab/Kaggle.</p>
+  </div>
+  <div class="demo">
+    <h3>Live Demo</h3>
+    <p><a href="https://lhyjrhmwzxqfpuuwsux7zh.streamlit.app">lhyjrhmwzxqfpuuwsux7zh.streamlit.app</a></p>
+    <p><a href="https://github.com/samogunnubi0-del/PINN">github.com/samogunnubi0-del/PINN</a></p>
+    <p style="color:#475569;margin-top:6px;">First load ~1 min if asleep.</p>
+  </div>
+</div>
+
+</body>
+</html>"""
+
+    OUT.write_text(html, encoding="utf-8")
+    kb = OUT.stat().st_size // 1024
+    missing = [n for n, b in (("mass", fig_mass), ("parity", fig_parity), ("evolution", fig_eval)) if not b]
+    note = f" (missing: {', '.join(missing)})" if missing else " (all 3 figures embedded)"
+    print(f"Saved {OUT.relative_to(ROOT)} ({kb} KB){note}")
 
 
 if __name__ == "__main__":
