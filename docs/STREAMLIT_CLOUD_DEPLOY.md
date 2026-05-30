@@ -34,6 +34,19 @@ Free tier apps **sleep after inactivity**. When a judge opens the URL after slee
 
 You cannot disable sleep on the free tier without upgrading.
 
+## Auto-wake (GitHub Actions, free)
+
+A scheduled workflow (`.github/workflows/keepalive.yml`) opens your app in headless Chromium every **6 hours** and clicks Streamlit’s wake button if needed. HTTP pings alone do not start the app.
+
+1. Deploy on Streamlit Cloud and copy your public URL.
+2. GitHub → **Settings → Secrets and variables → Actions** → New repository secret:
+   - **Name:** `STREAMLIT_APP_URL`
+   - **Value:** `https://your-app.streamlit.app` (no trailing slash)
+3. **Actions → Streamlit keepalive → Run workflow** to test once.
+4. Scheduled runs continue automatically.
+
+Not a 100% uptime guarantee — if a run fails, the app may still sleep. Still include GitHub + PDF in emails.
+
 ## Optional secrets
 
 App settings → **Secrets**:
