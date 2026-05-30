@@ -72,13 +72,16 @@
     "graphs/isef_mass_conservation.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_mass_conservation.png",
       "host": "local",
-      "mtime_ns": 1780167936373724500,
+      "mtime_ns": 1780172449531776700,
+      "ode_peak_ppm": 14.999227074491792,
+      "pinn_peak_ppm": 6.57589540114368,
       "producer": "isef_figures.py",
       "relative_path": "graphs/isef_mass_conservation.png",
-      "run_id": "c9391a43-fc5e-492d-bd58-4af040622125",
-      "sha256": "6eae9b407ffb99dc6fd784659bbce276f489a37c67a9c1f1866fb3ca939351e7",
-      "size_bytes": 133540,
-      "written_at_utc": "2026-05-30T19:05:36.397081+00:00"
+      "run_id": "cc32ac88-6b69-4e0e-b149-56d674008d48",
+      "sha256": "87192bf2b189e8be311d0c2818eb1f769f71080ed2504ff052d2e4c532b1889d",
+      "size_bytes": 204478,
+      "target_ppm": 10.0,
+      "written_at_utc": "2026-05-30T20:20:49.549698+00:00"
     },
     "graphs/isef_parity_restyled.png": {
       "absolute_path": "C:\\Users\\ogunn\\Downloads\\New folder\\New folder\\graphs\\isef_parity_restyled.png",
@@ -170,6 +173,6 @@
       "written_at_utc": "2026-05-30T15:25:48.795491+00:00"
     }
   },
-  "updated_at_utc": "2026-05-30T19:05:36.898302+00:00",
+  "updated_at_utc": "2026-05-30T20:20:49.549698+00:00",
   "version": 1
 }

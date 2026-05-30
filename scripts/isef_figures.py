@@ -291,7 +291,7 @@ def plot_loss_trajectory_12k() -> None:
 
 
 def plot_mass_conservation(model) -> None:
-    """Mass budget relative residual vs time for virgin Ra-226 + fast flux."""
+    """Five-species atom budget drift vs time — readable ppm scale for poster/board."""
     phi = 1.0e14
     energy_ev = 14.0e6
     n226_0 = TRAIN_INIT_RA226
@@ -299,25 +299,95 @@ def plot_mass_conservation(model) -> None:
     n0 = n226_0
 
     p226, p225, pac, p227, pac227 = _pinn_trajectory(model, t_hours, phi, energy_ev, n226_0)
-    # Full tracked inventory: Ra-226 -> Ra-225 -> Ac-225 and Ra-226 -> Ra-227 -> Ac-227
-    # both keep atoms inside the 5-species set, so the sum should equal N0 up to the tiny
-    # fraction that decays out of the chain (Ac-225/Ac-227 alpha). A 3-species sum would
-    # falsely show ~1e-4 drift because it drops the Ra-227/Ac-227 branch.
-    total = p226 + p225 + pac + p227 + pac227
-    rel_res = (total - n0) / max(n0, 1.0)
+    pinn_total = p226 + p225 + pac + p227 + pac227
+    pinn_ppm = (pinn_total - n0) / max(n0, 1.0) * 1e6
 
-    fig, ax = plt.subplots(figsize=(8, 4.5))
+    # ODE reference (same IC) — shows expected physics-limited drift from alpha exit.
+    env = IsotopeEnvironment(phi=phi, neutron_energy_ev=energy_ev)
+    t_ode, Y_ode = run_simulation(
+        env,
+        t_end_h=float(t_hours[-1]),
+        n_points=max(200, len(t_hours) * 4),
+        N_ra0=n226_0,
+    )
+    ode_total = np.zeros_like(t_hours)
+    for i in range(5):
+        ode_total += np.interp(t_hours, t_ode, Y_ode[:, i])
+    ode_ppm = (ode_total - n0) / max(n0, 1.0) * 1e6
+
+    target_ppm = 10.0  # ±1e-5 relative
+    pinn_peak = float(np.max(np.abs(pinn_ppm)))
+    ode_peak = float(np.max(np.abs(ode_ppm)))
+    y_lo = min(pinn_ppm.min(), ode_ppm.min(), -target_ppm) * 1.15
+    y_hi = max(pinn_ppm.max(), ode_ppm.max(), target_ppm) * 1.15
+    if y_hi - y_lo < 4.0:
+        mid = 0.5 * (y_hi + y_lo)
+        y_lo, y_hi = mid - 2.5, mid + 2.5
+
+    fig, ax = plt.subplots(figsize=(8.5, 4.8))
+    fig.subplots_adjust(top=0.82, bottom=0.18, left=0.11, right=0.96)
     with plt.rc_context(DARK_RC):
-        ax.plot(t_hours, rel_res, color="#a78bfa", lw=2, label=r"$(N_\mathrm{tot}-N_0)/N_0$ (PINN, 5 species)")
-        ax.axhline(0.0, color="#94a3b8", lw=0.8)
-        ax.axhspan(-1e-5, 1e-5, alpha=0.2, color="#2ecc71", label=r"Target band $\pm10^{-5}$")
-        ax.set_xlabel(r"Time $t$ (h)")
-        ax.set_ylabel("Relative mass residual")
-        ax.set_title("Mass conservation — Ra-226 feed + flux (5-species inventory)")
-        ax.legend(loc="best")
-        ax.grid(True, alpha=0.25)
+        ax.axhspan(-target_ppm, target_ppm, alpha=0.12, color="#34d399", zorder=0)
+        ax.axhline(target_ppm, color="#34d399", ls="--", lw=1.0, alpha=0.7, zorder=1)
+        ax.axhline(-target_ppm, color="#34d399", ls="--", lw=1.0, alpha=0.7, zorder=1)
+        ax.axhline(0.0, color="#64748b", lw=0.8, zorder=1)
+        ax.plot(
+            t_hours,
+            ode_ppm,
+            color="#94a3b8",
+            ls="--",
+            lw=1.8,
+            label="ODE reference",
+            zorder=2,
+        )
+        ax.plot(
+            t_hours,
+            pinn_ppm,
+            color="#a78bfa",
+            lw=2.4,
+            label="PINN (5-species sum)",
+            zorder=3,
+        )
+        ax.set_xlim(t_hours[0], t_hours[-1])
+        ax.set_ylim(y_lo, y_hi)
+        ax.set_xlabel("Irradiation time (hours)")
+        ax.set_ylabel("Atom budget drift (ppm)\n(parts per million vs starting Ra-226)")
+        ax.set_title(
+            "Mass conservation — virgin Ra-226, φ = 1×10¹⁴, 14 MeV",
+            fontsize=12,
+            pad=8,
+        )
+        status = "PINN within ±10 ppm training band" if pinn_peak <= target_ppm else "PINN exceeds training band"
+        fig.text(
+            0.5,
+            0.94,
+            f"Peak |drift|: PINN {pinn_peak:.1f} ppm · ODE {ode_peak:.1f} ppm · {status}",
+            ha="center",
+            va="top",
+            fontsize=9.5,
+            color="#cbd5e1",
+        )
+        fig.text(
+            0.5,
+            0.02,
+            "Drift = (sum of 5 isotopes − starting Ra-226) / starting Ra-226 · dashed green = ±10 ppm training target",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+            color="#64748b",
+        )
+        ax.legend(loc="lower right", framealpha=0.9, fontsize=9)
+        ax.grid(True, alpha=0.22)
         _style_figure(ax)
-    _save(fig, "isef_mass_conservation.png")
+    _save(
+        fig,
+        "isef_mass_conservation.png",
+        {
+            "pinn_peak_ppm": pinn_peak,
+            "ode_peak_ppm": ode_peak,
+            "target_ppm": target_ppm,
+        },
+    )
 
 
 HELDOUT_DETAILS = ROOT / "analysis" / "validation" / "heldout_validation_details.csv"
