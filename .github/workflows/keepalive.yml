@@ -33,4 +33,7 @@ jobs:
           playwright install chromium --with-deps
 
       - name: Wake Streamlit app
+        env:
+          KEEPALIVE_POST_WAKE_WAIT_S: "120"
+          KEEPALIVE_POLL_TIMEOUT_S: "180"
         run: python scripts/keepalive.py
