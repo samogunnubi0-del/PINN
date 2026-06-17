@@ -200,7 +200,16 @@ def _fig_to_png_bytes(fig, *, dpi: int = 100) -> bytes:
 def _show_dark_png(png_bytes: bytes | None, caption: str | None = None) -> None:
     if not png_bytes:
         return
-    st.image(png_bytes, caption=caption, use_container_width=True)
+    b64 = base64.b64encode(png_bytes).decode("ascii")
+    cap = (
+        f'<p style="color:#6B6B6B;font-size:0.9rem;margin:0.5rem 0 1rem 0;font-family:\'Source Sans 3\',sans-serif;text-align:center;">{caption}</p>'
+        if caption
+        else ""
+    )
+    st.markdown(
+        f'<div class="static-graph-wrap"><img src="data:image/png;base64,{b64}" alt="figure"/></div>{cap}',
+        unsafe_allow_html=True,
+    )
 
 
 def _show_static_graph(img: Image.Image | None, caption: str | None = None) -> None:
@@ -211,12 +220,12 @@ def _show_static_graph(img: Image.Image | None, caption: str | None = None) -> N
     img.save(buf, format="PNG")
     b64 = base64.b64encode(buf.getvalue()).decode("ascii")
     cap = (
-        f'<p style="color:#94a3b8;font-size:0.82rem;margin:0.4rem 0 0.75rem 0;">{caption}</p>'
+        f'<p style="color:#6B6B6B;font-size:0.9rem;margin:0.5rem 0 1rem 0;font-family:\'Source Sans 3\',sans-serif;text-align:center;">{caption}</p>'
         if caption
         else ""
     )
     st.markdown(
-        f'<div class="static-graph-wrap"><img src="data:image/png;base64,{b64}" alt="figure"/></div>{cap}',
+        f'<div class="static-graph-wrap" style="background:#FFFFFF;border:1px solid #E8E4DF;"><img src="data:image/png;base64,{b64}" alt="figure"/></div>{cap}',
         unsafe_allow_html=True,
     )
 
@@ -582,20 +591,15 @@ div[data-testid="stTabs"] button[aria-selected="true"] {
 .physics-banner h3 { margin: 0 0 0.5rem 0; color: var(--medical-red); font-size: 1.25rem; font-family: "Playfair Display", serif; }
 .physics-banner p { margin: 0; color: var(--text-secondary); font-size: 1rem; line-height: 1.55; }
 .static-graph-wrap {
-  background: var(--bg-card);
-  border-radius: 8px;
-  padding: 12px;
-  border: 1px solid var(--border-color);
-  margin-bottom: 0.25rem;
+  background: #121212;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid var(--accent-gold);
+  margin-bottom: 0.5rem;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+  text-align: center;
 }
-.static-graph-wrap img { width: 100%; display: block; border-radius: 6px; }
-
-/* Force all PNG graphs to match the light mode theme */
-div[data-testid="stImage"] img, .static-graph-wrap img {
-  filter: invert(0.92) hue-rotate(180deg) !important;
-  border-radius: 6px !important;
-  mix-blend-mode: multiply !important;
-}
+.static-graph-wrap img { width: 100%; max-width: 850px; display: inline-block; border-radius: 6px; }
 
 /* Sidebar Overrides */
 section[data-testid="stSidebar"] {
