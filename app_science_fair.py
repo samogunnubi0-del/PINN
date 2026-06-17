@@ -582,13 +582,37 @@ div[data-testid="stTabs"] button[aria-selected="true"] {
 .physics-banner h3 { margin: 0 0 0.5rem 0; color: var(--medical-red); font-size: 1.25rem; font-family: "Playfair Display", serif; }
 .physics-banner p { margin: 0; color: var(--text-secondary); font-size: 1rem; line-height: 1.55; }
 .static-graph-wrap {
-  background: #FFFFFF; /* Graphs are white for contrast */
+  background: var(--bg-card);
   border-radius: 8px;
   padding: 12px;
   border: 1px solid var(--border-color);
   margin-bottom: 0.25rem;
 }
 .static-graph-wrap img { width: 100%; display: block; border-radius: 6px; }
+
+/* Make the dark PNG graphs match the light mode theme */
+@media (prefers-color-scheme: light) {
+  .static-graph-wrap img, div[data-testid="stImage"] img {
+    filter: invert(0.92) hue-rotate(180deg);
+  }
+}
+
+/* Sidebar Overrides */
+section[data-testid="stSidebar"] {
+  background-color: var(--bg-primary) !important;
+  border-right: 1px solid var(--border-color) !important;
+}
+.nav-hint {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--accent-gold);
+  border-radius: 6px;
+  margin-top: 1rem;
+}
 .model-rung {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
