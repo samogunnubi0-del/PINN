@@ -590,11 +590,11 @@ div[data-testid="stTabs"] button[aria-selected="true"] {
 }
 .static-graph-wrap img { width: 100%; display: block; border-radius: 6px; }
 
-/* Make the dark PNG graphs match the light mode theme */
-@media (prefers-color-scheme: light) {
-  .static-graph-wrap img, div[data-testid="stImage"] img {
-    filter: invert(0.92) hue-rotate(180deg);
-  }
+/* Force all PNG graphs to match the light mode theme */
+div[data-testid="stImage"] img, .static-graph-wrap img {
+  filter: invert(0.92) hue-rotate(180deg) !important;
+  border-radius: 6px !important;
+  mix-blend-mode: multiply !important;
 }
 
 /* Sidebar Overrides */
